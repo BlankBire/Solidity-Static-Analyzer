@@ -1,0 +1,72 @@
+{
+  "name": "solidity-static-analyzer",
+  "displayName": "Solidity Static Analyzer",
+  "description": "Static analysis diagnostics for Solidity smart contracts in VS Code.",
+  "version": "0.0.1",
+  "publisher": "your-name",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://example.com/your-repo.git"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters"
+  ],
+  "activationEvents": [
+    "onLanguage:solidity",
+    "workspaceContains:**/*.sol"
+  ],
+  "main": "out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Solidity Static Analyzer",
+      "properties": {
+        "solidityStaticAnalyzer.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable the Solidity Static Analyzer."
+        },
+        "solidityStaticAnalyzer.rules.txOrigin": {
+          "type": "boolean",
+          "default": true,
+          "description": "Flag usage of tx.origin."
+        },
+        "solidityStaticAnalyzer.rules.selfdestruct": {
+          "type": "boolean",
+          "default": true,
+          "description": "Flag usage of selfdestruct/suicide."
+        },
+        "solidityStaticAnalyzer.rules.delegatecall": {
+          "type": "boolean",
+          "default": true,
+          "description": "Flag usage of delegatecall."
+        },
+        "solidityStaticAnalyzer.rules.lowLevelCallValue": {
+          "type": "boolean",
+          "default": true,
+          "description": "Flag usage of call.value() or (bool success,)."
+        },
+        "solidityStaticAnalyzer.maxProblems": {
+          "type": "number",
+          "default": 100,
+          "description": "Maximum number of reported problems per file."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "watch": "tsc -w -p .",
+    "lint": "echo 'No linter configured'",
+    "prepublishOnly": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.3"
+  }
+}
