@@ -12,6 +12,7 @@ Tính năng
 
 Phát triển (Development)
 
+- Sau khi git clone, tại VS Code nhấn File - Open Folder - chọn thư mục solidity-static-analyzer trong thư mục đã tạo để clone
 - npm install
 - npm run compile
 - Nhấn F5 trong VS Code để chạy Extension Development Host
