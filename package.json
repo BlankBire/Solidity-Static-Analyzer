@@ -50,6 +50,41 @@
           "default": true,
           "description": "Flag usage of call.value() or (bool success,)."
         },
+        "solidityStaticAnalyzer.rules.missingSemicolon": {
+          "type": "boolean",
+          "default": true,
+          "description": "Detect missing semicolons at end of statements."
+        },
+        "solidityStaticAnalyzer.rules.missingParentheses": {
+          "type": "boolean",
+          "default": true,
+          "description": "Detect missing parentheses in function calls."
+        },
+        "solidityStaticAnalyzer.rules.missingBraces": {
+          "type": "boolean",
+          "default": true,
+          "description": "Detect missing braces in control flow statements."
+        },
+        "solidityStaticAnalyzer.rules.missingReturn": {
+          "type": "boolean",
+          "default": true,
+          "description": "Detect missing return statements in functions."
+        },
+        "solidityStaticAnalyzer.rules.wrongKeywords": {
+          "type": "boolean",
+          "default": true,
+          "description": "Detect deprecated or wrong keywords."
+        },
+        "solidityStaticAnalyzer.rules.missingDataType": {
+          "type": "boolean",
+          "default": true,
+          "description": "Detect missing data type declarations."
+        },
+        "solidityStaticAnalyzer.rules.missingPayable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Detect missing payable modifier for ETH handling functions."
+        },
         "solidityStaticAnalyzer.maxProblems": {
           "type": "number",
           "default": 100,

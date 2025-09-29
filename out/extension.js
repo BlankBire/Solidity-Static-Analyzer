@@ -43,6 +43,7 @@ const solidityAnalyzer_1 = require("./solidityAnalyzer");
 // - Lắng nghe sự kiện mở/sửa/lưu tài liệu Solidity và kích hoạt phân tích.
 // - Đọc Settings của extension và truyền vào bộ phân tích cốt lõi.
 let diagnosticCollection;
+let analysisTimeout;
 function activate(context) {
     // Đọc cấu hình của extension từ Settings (solidityStaticAnalyzer.*)
     const config = vscode.workspace.getConfiguration("solidityStaticAnalyzer");
@@ -77,10 +78,17 @@ function activate(context) {
             runAnalysis(doc);
         }
     }), 
-    // Khi nội dung tài liệu thay đổi (gõ phím)
+    // Khi nội dung tài liệu thay đổi (gõ phím) - với debounce
     vscode.workspace.onDidChangeTextDocument((e) => {
         if (e.document.languageId === "solidity") {
-            runAnalysis(e.document);
+            // Clear timeout cũ nếu có
+            if (analysisTimeout) {
+                clearTimeout(analysisTimeout);
+            }
+            // Chạy analysis sau 300ms để tránh quá nhiều lần chạy
+            analysisTimeout = setTimeout(() => {
+                runAnalysis(e.document);
+            }, 300);
         }
     }), 
     // Khi lưu tài liệu
@@ -104,6 +112,9 @@ function activate(context) {
 }
 function deactivate() {
     // Dọn dẹp khi extension bị unload
+    if (analysisTimeout) {
+        clearTimeout(analysisTimeout);
+    }
     diagnosticCollection?.clear();
     diagnosticCollection?.dispose();
 }
@@ -116,6 +127,14 @@ function runAnalysis(document) {
         selfdestruct: config.get("rules.selfdestruct", true) ?? true,
         delegatecall: config.get("rules.delegatecall", true) ?? true,
         lowLevelCallValue: config.get("rules.lowLevelCallValue", true) ?? true,
+        // Syntax rules
+        missingSemicolon: config.get("rules.missingSemicolon", true) ?? true,
+        missingParentheses: config.get("rules.missingParentheses", true) ?? true,
+        missingBraces: config.get("rules.missingBraces", true) ?? true,
+        missingReturn: config.get("rules.missingReturn", true) ?? true,
+        wrongKeywords: config.get("rules.wrongKeywords", true) ?? true,
+        missingDataType: config.get("rules.missingDataType", true) ?? true,
+        missingPayable: config.get("rules.missingPayable", true) ?? true,
     };
     // Gọi bộ phân tích cốt lõi với nội dung tài liệu
     const text = document.getText();

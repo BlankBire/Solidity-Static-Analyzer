@@ -8,6 +8,7 @@ import { analyzeText } from "./solidityAnalyzer";
 // - Đọc Settings của extension và truyền vào bộ phân tích cốt lõi.
 
 let diagnosticCollection: vscode.DiagnosticCollection | undefined;
+let analysisTimeout: NodeJS.Timeout | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
   // Đọc cấu hình của extension từ Settings (solidityStaticAnalyzer.*)
@@ -50,10 +51,17 @@ export function activate(context: vscode.ExtensionContext) {
         runAnalysis(doc);
       }
     }),
-    // Khi nội dung tài liệu thay đổi (gõ phím)
+    // Khi nội dung tài liệu thay đổi (gõ phím) - với debounce
     vscode.workspace.onDidChangeTextDocument((e) => {
       if (e.document.languageId === "solidity") {
-        runAnalysis(e.document);
+        // Clear timeout cũ nếu có
+        if (analysisTimeout) {
+          clearTimeout(analysisTimeout);
+        }
+        // Chạy analysis sau 300ms để tránh quá nhiều lần chạy
+        analysisTimeout = setTimeout(() => {
+          runAnalysis(e.document);
+        }, 300);
       }
     }),
     // Khi lưu tài liệu
@@ -84,6 +92,9 @@ export function activate(context: vscode.ExtensionContext) {
 
 export function deactivate() {
   // Dọn dẹp khi extension bị unload
+  if (analysisTimeout) {
+    clearTimeout(analysisTimeout);
+  }
   diagnosticCollection?.clear();
   diagnosticCollection?.dispose();
 }
@@ -98,6 +109,14 @@ function runAnalysis(document: vscode.TextDocument) {
     delegatecall: config.get<boolean>("rules.delegatecall", true) ?? true,
     lowLevelCallValue:
       config.get<boolean>("rules.lowLevelCallValue", true) ?? true,
+    // Syntax rules
+    missingSemicolon: config.get<boolean>("rules.missingSemicolon", true) ?? true,
+    missingParentheses: config.get<boolean>("rules.missingParentheses", true) ?? true,
+    missingBraces: config.get<boolean>("rules.missingBraces", true) ?? true,
+    missingReturn: config.get<boolean>("rules.missingReturn", true) ?? true,
+    wrongKeywords: config.get<boolean>("rules.wrongKeywords", true) ?? true,
+    missingDataType: config.get<boolean>("rules.missingDataType", true) ?? true,
+    missingPayable: config.get<boolean>("rules.missingPayable", true) ?? true,
   };
 
   // Gọi bộ phân tích cốt lõi với nội dung tài liệu
