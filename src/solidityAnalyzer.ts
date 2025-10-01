@@ -136,7 +136,24 @@ export function analyzeText(
 
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
+    const lineNoInlineComment = line.split("//")[0];
     const lineLower = line.toLowerCase();
+    const stripInlineComments = (s: string) => {
+      const noLine = s.split("//")[0];
+      const blockIdx = noLine.indexOf("/*");
+      return blockIdx >= 0 ? noLine.slice(0, blockIdx) : noLine;
+    };
+    const getLastCodeCharIndex = (s: string) => {
+      const codePart = stripInlineComments(s);
+      // vị trí ký tự code cuối cùng (bỏ khoảng trắng cuối)
+      for (let k = codePart.length - 1; k >= 0; k -= 1) {
+        const ch = codePart[k];
+        if (ch !== " " && ch !== "\t") {
+          return k;
+        }
+      }
+      return Math.max(0, codePart.length - 1);
+    };
 
     // =============================================================================
     // SECURITY RULES - Cảnh báo các vấn đề bảo mật
@@ -220,26 +237,87 @@ export function analyzeText(
     if (rules.missingSemicolon) {
       const trimmedLine = line.trim();
 
-      // Patterns cần dấu chấm phẩy cuối dòng
+      const isCommentOrBlank = (s: string) => {
+        const t = s.trim();
+        return t === "" || t.startsWith("//") || t.startsWith("/*");
+      };
+
+      // 5.1 Broad variable declaration detection (supports modifiers) without ending semicolon
+      // Example: `uint public number` or `address owner` or `mapping(address => uint) balances`
+      const typeKeywordPattern = /^(?:uint\d*|int\d*|uint|int|address|bool|string|bytes\d*|bytes|mapping\s*\()/i;
+      const modifierKeywords = new Set([
+        "public",
+        "private",
+        "internal",
+        "external",
+        "view",
+        "pure",
+        "payable",
+        "constant",
+        "immutable",
+        "memory",
+        "storage",
+        "calldata",
+      ]);
+
+      const lineForDeclCheck = stripInlineComments(line).trim();
+      if (
+        typeKeywordPattern.test(lineForDeclCheck) &&
+        !lineForDeclCheck.includes(" function ") &&
+        !lineForDeclCheck.startsWith("function ") &&
+        !lineForDeclCheck.endsWith(";") &&
+        !lineForDeclCheck.endsWith("{") &&
+        !lineForDeclCheck.endsWith("}")
+      ) {
+        // Avoid false positives for parameter lists by skipping lines containing '(' unless it's mapping(
+        if (!lineForDeclCheck.includes("(") || /\bmapping\s*\(/i.test(lineForDeclCheck)) {
+          const tokens = lineForDeclCheck
+            .replace(/\b(mapping\s*\([^)]*\))/gi, "mapping")
+            .split(/\s+/)
+            .filter(Boolean);
+          // Find a plausible identifier token that is not a modifier or type keyword
+          let hasIdentifier = false;
+          for (let tIndex = 1; tIndex < tokens.length; tIndex += 1) {
+            const tok = tokens[tIndex];
+            const isModifier = modifierKeywords.has(tok.toLowerCase());
+            const isType = typeKeywordPattern.test(tok);
+            const isArray = /\[.*\]$/.test(tok);
+            const isIdentifier = /[A-Za-z_][A-Za-z0-9_]*/.test(tok);
+            if (!isModifier && !isType && isIdentifier && !isArray) {
+              hasIdentifier = true;
+              break;
+            }
+          }
+          if (hasIdentifier) {
+            const idx = getLastCodeCharIndex(line);
+            pushFinding(
+              i,
+              idx,
+              idx + 1,
+              "Missing semicolon at end of declaration.",
+              "MISSING_SEMICOLON",
+              vscode.DiagnosticSeverity.Error
+            );
+          }
+        }
+      }
+
+      // 5.2 Single-line statements that require a semicolon
       const needsSemicolon = [
-        /^\s*(uint|int|string|bool|address|bytes\d*)\s+\w+\s*[=;]/i, // Variable declarations
-        /^\s*\w+\s*=\s*[^=]/i,                                      // Assignment statements
-        /^\s*(require|assert|revert)\s*\(/i,                       // Require/assert statements
-        /^\s*(emit|return|break|continue)\b/i,                     // Control flow statements
+        /^\s*\w+\s*=\s*[^=]/i, // Assignment statements
+        /^\s*(require|assert|revert)\s*\(/i, // Require/assert/revert
+        /^\s*(emit|return|break|continue)\b/i, // Control flow
       ];
 
       for (const pattern of needsSemicolon) {
-        if (pattern.test(line)) {
-          // Chỉ báo lỗi nếu dòng không kết thúc bằng ; { } và không phải comment
+        if (pattern.test(stripInlineComments(line))) {
           if (
-            !trimmedLine.endsWith(";") &&
-            !trimmedLine.endsWith("{") &&
-            !trimmedLine.endsWith("}") &&
-            trimmedLine !== "" &&
-            !trimmedLine.startsWith("//") &&
-            !trimmedLine.startsWith("/*")
+            !stripInlineComments(trimmedLine).endsWith(";") &&
+            !stripInlineComments(trimmedLine).endsWith("{") &&
+            !stripInlineComments(trimmedLine).endsWith("}") &&
+            !isCommentOrBlank(trimmedLine)
           ) {
-            const idx = line.length - 1;
+            const idx = getLastCodeCharIndex(line);
             pushFinding(
               i,
               idx,
@@ -250,6 +328,106 @@ export function analyzeText(
             );
             break;
           }
+        }
+      }
+
+      // 5.3 Multi-line statements finishing with ')' without ';'
+      // Example: assignment or call split across lines, last line ends with ')'
+      if (stripInlineComments(trimmedLine).endsWith(")") && !stripInlineComments(trimmedLine).endsWith(";") && !isCommentOrBlank(trimmedLine)) {
+        // Look back up to 5 lines to find a starter that needs a semicolon
+        const lookbackLimit = Math.max(0, i - 5);
+        let foundStarter = false;
+        let isLastLineOfStatement = true;
+
+        // Check if this is the last line of a multi-line statement
+        // by looking at the next non-empty line
+        for (let k = i + 1; k < lines.length; k++) {
+          const nextLine = stripInlineComments(lines[k]).trim();
+          if (nextLine === "") {
+            continue; // Skip empty lines
+          }
+          // If next line starts a new statement or is a closing brace, this is the last line
+          if (nextLine.startsWith("require") ||
+            nextLine.startsWith("emit") ||
+            nextLine.startsWith("return") ||
+            nextLine.startsWith("}") ||
+            nextLine.startsWith("function") ||
+            nextLine.startsWith("contract") ||
+            nextLine.startsWith("modifier") ||
+            nextLine.startsWith("event") ||
+            nextLine.startsWith("struct") ||
+            nextLine.startsWith("enum")) {
+            break;
+          }
+          // If next line is part of the same statement (doesn't start with statement keywords),
+          // then this is not the last line
+          isLastLineOfStatement = false;
+          break;
+        }
+
+        if (!isLastLineOfStatement) {
+          continue; // Skip if this is not the last line of the statement
+        }
+
+        for (let j = i - 1; j >= lookbackLimit; j -= 1) {
+          const prev = lines[j];
+          const prevNoComment = stripInlineComments(prev).trim();
+          if (isCommentOrBlank(prevNoComment)) {
+            continue;
+          }
+          // If we encounter a line already ending with ';' or a block start/end, stop
+          if (prevNoComment.endsWith(";") || prevNoComment.endsWith("{") || prevNoComment.endsWith("}")) {
+            break;
+          }
+
+          // Check for various patterns that need semicolon
+          const needsSemicolonPatterns = [
+            /^\s*\w+\s*=\s*[^=]/i, // Assignment statements
+            /^\s*(require|assert|revert|emit|return)\b/i, // Control flow
+            /^\s*\([^)]*\)\s*=/i, // Tuple assignment like "(bool success, ) = ..."
+            /^\s*\w+\.\w+\s*\(/i, // Method calls like "logic.delegatecall("
+            /^\s*\w+\s*\(/i, // Function calls
+          ];
+
+          const hasPattern = needsSemicolonPatterns.some(pattern => pattern.test(prevNoComment));
+          if (hasPattern) {
+            foundStarter = true;
+            break;
+          }
+        }
+        if (foundStarter) {
+          const idx = getLastCodeCharIndex(line);
+          pushFinding(
+            i,
+            idx,
+            idx + 1,
+            "Missing semicolon at end of statement.",
+            "MISSING_SEMICOLON",
+            vscode.DiagnosticSeverity.Error
+          );
+        }
+      }
+
+      // 5.4 Single identifier at end of line without semicolon (like "logic" in user's example)
+      // This catches cases where a single identifier is left hanging at the end of a line
+      const singleIdentifierPattern = /^\s*[A-Za-z_][A-Za-z0-9_]*\s*$/;
+      if (singleIdentifierPattern.test(stripInlineComments(trimmedLine)) && !isCommentOrBlank(trimmedLine)) {
+        // Make sure it's not a function declaration, modifier, or other valid single-word statements
+        const isFunctionDeclaration = /^\s*(function|modifier|event|struct|enum|contract|interface|library)\b/i.test(trimmedLine);
+        const isImportStatement = /^\s*(import|pragma)\b/i.test(trimmedLine);
+        const isUsingStatement = /^\s*using\b/i.test(trimmedLine);
+        const isConstructor = /^\s*constructor\b/i.test(trimmedLine);
+
+        if (!isFunctionDeclaration && !isImportStatement && !isUsingStatement && !isConstructor) {
+          const idx = getLastCodeCharIndex(line);
+          pushFinding(
+            i,
+            idx,
+            idx + 1,
+            "Missing semicolon at end of statement.",
+            "MISSING_SEMICOLON",
+            vscode.DiagnosticSeverity.Error
+          );
         }
       }
     }
