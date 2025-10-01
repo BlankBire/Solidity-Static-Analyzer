@@ -36,7 +36,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.analyzeText = analyzeText;
 const vscode = __importStar(require("vscode"));
 // =============================================================================
-// MAIN ANALYZER FUNCTION
+// HÀM PHÂN TÍCH CHÍNH
 // =============================================================================
 /**
  * Hàm chính phân tích mã Solidity
@@ -48,7 +48,7 @@ const vscode = __importStar(require("vscode"));
 function analyzeText(content, rules, maxProblems) {
     const findings = [];
     const lines = content.split(/\r?\n/);
-    // Helper function để thêm finding vào danh sách
+    // Hàm helper để thêm finding vào danh sách
     const pushFinding = (lineIndex, start, end, message, code, severity) => {
         if (findings.length >= maxProblems) {
             return;
@@ -64,12 +64,12 @@ function analyzeText(content, rules, maxProblems) {
         });
     };
     // =============================================================================
-    // SYNTAX ANALYSIS - BRACES MATCHING (Stack-based approach)
+    // PHÂN TÍCH CÚ PHÁP - KIỂM TRA DẤU NGOẶC NHỌN (Phương pháp Stack-based)
     // =============================================================================
     if (rules.missingBraces) {
         const stack = [];
         let extraClosingReported = false;
-        // Duyệt qua từng ký tự để kiểm tra matching braces
+        // Duyệt qua từng ký tự để kiểm tra dấu ngoặc nhọn khớp nhau
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
             for (let j = 0; j < line.length; j++) {
@@ -79,7 +79,7 @@ function analyzeText(content, rules, maxProblems) {
                 }
                 else if (char === "}") {
                     if (stack.length === 0) {
-                        // Extra closing brace - chỉ báo lỗi 1 lần
+                        // Dấu ngoặc nhọn đóng thừa - chỉ báo lỗi 1 lần
                         if (!extraClosingReported) {
                             pushFinding(i, j, j + 1, "Extra closing brace.", "MISSING_BRACES", vscode.DiagnosticSeverity.Error);
                             extraClosingReported = true;
@@ -98,7 +98,7 @@ function analyzeText(content, rules, maxProblems) {
         }
     }
     // =============================================================================
-    // LINE-BY-LINE ANALYSIS
+    // PHÂN TÍCH TỪNG DÒNG
     // =============================================================================
     for (let i = 0; i < lines.length; i += 1) {
         const line = lines[i];
@@ -171,8 +171,8 @@ function analyzeText(content, rules, maxProblems) {
                 const t = s.trim();
                 return t === "" || t.startsWith("//") || t.startsWith("/*");
             };
-            // 5.1 Broad variable declaration detection (supports modifiers) without ending semicolon
-            // Example: `uint public number` or `address owner` or `mapping(address => uint) balances`
+            // 5.1 Phát hiện khai báo biến rộng rãi (hỗ trợ modifiers) không có dấu chấm phẩy cuối
+            // Ví dụ: `uint public number` hoặc `address owner` hoặc `mapping(address => uint) balances`
             const typeKeywordPattern = /^(?:uint\d*|int\d*|uint|int|address|bool|string|bytes\d*|bytes|mapping\s*\()/i;
             const modifierKeywords = new Set([
                 "public",
@@ -195,13 +195,13 @@ function analyzeText(content, rules, maxProblems) {
                 !lineForDeclCheck.endsWith(";") &&
                 !lineForDeclCheck.endsWith("{") &&
                 !lineForDeclCheck.endsWith("}")) {
-                // Avoid false positives for parameter lists by skipping lines containing '(' unless it's mapping(
+                // Tránh false positives cho danh sách tham số bằng cách bỏ qua các dòng chứa '(' trừ khi là mapping(
                 if (!lineForDeclCheck.includes("(") || /\bmapping\s*\(/i.test(lineForDeclCheck)) {
                     const tokens = lineForDeclCheck
                         .replace(/\b(mapping\s*\([^)]*\))/gi, "mapping")
                         .split(/\s+/)
                         .filter(Boolean);
-                    // Find a plausible identifier token that is not a modifier or type keyword
+                    // Tìm một identifier token hợp lý không phải là modifier hoặc type keyword
                     let hasIdentifier = false;
                     for (let tIndex = 1; tIndex < tokens.length; tIndex += 1) {
                         const tok = tokens[tIndex];
@@ -220,11 +220,11 @@ function analyzeText(content, rules, maxProblems) {
                     }
                 }
             }
-            // 5.2 Single-line statements that require a semicolon
+            // 5.2 Các câu lệnh một dòng yêu cầu dấu chấm phẩy
             const needsSemicolon = [
-                /^\s*\w+\s*=\s*[^=]/i, // Assignment statements
+                /^\s*\w+\s*=\s*[^=]/i, // Câu lệnh gán
                 /^\s*(require|assert|revert)\s*\(/i, // Require/assert/revert
-                /^\s*(emit|return|break|continue)\b/i, // Control flow
+                /^\s*(emit|return|break|continue)\b/i, // Luồng điều khiển
             ];
             for (const pattern of needsSemicolon) {
                 if (pattern.test(stripInlineComments(line))) {
@@ -238,21 +238,21 @@ function analyzeText(content, rules, maxProblems) {
                     }
                 }
             }
-            // 5.3 Multi-line statements finishing with ')' without ';'
-            // Example: assignment or call split across lines, last line ends with ')'
+            // 5.3 Câu lệnh nhiều dòng kết thúc bằng ')' mà không có ';'
+            // Ví dụ: assignment hoặc call được chia thành nhiều dòng, dòng cuối kết thúc bằng ')'
             if (stripInlineComments(trimmedLine).endsWith(")") && !stripInlineComments(trimmedLine).endsWith(";") && !isCommentOrBlank(trimmedLine)) {
-                // Look back up to 5 lines to find a starter that needs a semicolon
+                // Nhìn lại tối đa 5 dòng để tìm starter cần dấu chấm phẩy
                 const lookbackLimit = Math.max(0, i - 5);
                 let foundStarter = false;
                 let isLastLineOfStatement = true;
-                // Check if this is the last line of a multi-line statement
-                // by looking at the next non-empty line
+                // Kiểm tra xem đây có phải là dòng cuối của câu lệnh nhiều dòng không
+                // bằng cách xem dòng không trống tiếp theo
                 for (let k = i + 1; k < lines.length; k++) {
                     const nextLine = stripInlineComments(lines[k]).trim();
                     if (nextLine === "") {
-                        continue; // Skip empty lines
+                        continue; // Bỏ qua dòng trống
                     }
-                    // If next line starts a new statement or is a closing brace, this is the last line
+                    // Nếu dòng tiếp theo bắt đầu một câu lệnh mới hoặc là dấu ngoặc nhọn đóng, đây là dòng cuối
                     if (nextLine.startsWith("require") ||
                         nextLine.startsWith("emit") ||
                         nextLine.startsWith("return") ||
@@ -265,13 +265,13 @@ function analyzeText(content, rules, maxProblems) {
                         nextLine.startsWith("enum")) {
                         break;
                     }
-                    // If next line is part of the same statement (doesn't start with statement keywords),
-                    // then this is not the last line
+                    // Nếu dòng tiếp theo là một phần của cùng một câu lệnh (không bắt đầu với từ khóa câu lệnh),
+                    // thì đây không phải là dòng cuối
                     isLastLineOfStatement = false;
                     break;
                 }
                 if (!isLastLineOfStatement) {
-                    continue; // Skip if this is not the last line of the statement
+                    continue; // Bỏ qua nếu đây không phải là dòng cuối của câu lệnh
                 }
                 for (let j = i - 1; j >= lookbackLimit; j -= 1) {
                     const prev = lines[j];
@@ -279,16 +279,16 @@ function analyzeText(content, rules, maxProblems) {
                     if (isCommentOrBlank(prevNoComment)) {
                         continue;
                     }
-                    // If we encounter a line already ending with ';' or a block start/end, stop
+                    // Nếu gặp dòng đã kết thúc bằng ';' hoặc bắt đầu/kết thúc block, dừng lại
                     if (prevNoComment.endsWith(";") || prevNoComment.endsWith("{") || prevNoComment.endsWith("}")) {
                         break;
                     }
-                    // Check for various patterns that need semicolon
+                    // Kiểm tra các pattern khác nhau cần dấu chấm phẩy
                     const needsSemicolonPatterns = [
-                        /^\s*\w+\s*=\s*[^=]/i, // Assignment statements
-                        /^\s*(require|assert|revert|emit|return)\b/i, // Control flow
-                        /^\s*\([^)]*\)\s*=/i, // Tuple assignment like "(bool success, ) = ..."
-                        /^\s*\w+\.\w+\s*\(/i, // Method calls like "logic.delegatecall("
+                        /^\s*\w+\s*=\s*[^=]/i, // Câu lệnh gán
+                        /^\s*(require|assert|revert|emit|return)\b/i, // Luồng điều khiển
+                        /^\s*\([^)]*\)\s*=/i, // Tuple assignment như "(bool success, ) = ..."
+                        /^\s*\w+\.\w+\s*\(/i, // Method calls như "logic.delegatecall("
                         /^\s*\w+\s*\(/i, // Function calls
                     ];
                     const hasPattern = needsSemicolonPatterns.some(pattern => pattern.test(prevNoComment));
@@ -302,11 +302,11 @@ function analyzeText(content, rules, maxProblems) {
                     pushFinding(i, idx, idx + 1, "Missing semicolon at end of statement.", "MISSING_SEMICOLON", vscode.DiagnosticSeverity.Error);
                 }
             }
-            // 5.4 Single identifier at end of line without semicolon (like "logic" in user's example)
-            // This catches cases where a single identifier is left hanging at the end of a line
+            // 5.4 Identifier đơn lẻ ở cuối dòng mà không có dấu chấm phẩy (như "logic" trong ví dụ của user)
+            // Điều này bắt các trường hợp một identifier đơn lẻ bị treo ở cuối dòng
             const singleIdentifierPattern = /^\s*[A-Za-z_][A-Za-z0-9_]*\s*$/;
             if (singleIdentifierPattern.test(stripInlineComments(trimmedLine)) && !isCommentOrBlank(trimmedLine)) {
-                // Make sure it's not a function declaration, modifier, or other valid single-word statements
+                // Đảm bảo nó không phải là function declaration, modifier, hoặc các câu lệnh single-word hợp lệ khác
                 const isFunctionDeclaration = /^\s*(function|modifier|event|struct|enum|contract|interface|library)\b/i.test(trimmedLine);
                 const isImportStatement = /^\s*(import|pragma)\b/i.test(trimmedLine);
                 const isUsingStatement = /^\s*using\b/i.test(trimmedLine);
