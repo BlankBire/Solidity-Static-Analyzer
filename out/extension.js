@@ -123,29 +123,29 @@ function runAnalysis(document) {
     const config = vscode.workspace.getConfiguration("solidityStaticAnalyzer");
     const maxProblems = config.get("maxProblems", 100);
     const rules = {
-        txOrigin: config.get("rules.txOrigin", true) ?? true,
-        selfdestruct: config.get("rules.selfdestruct", true) ?? true,
-        delegatecall: config.get("rules.delegatecall", true) ?? true,
-        lowLevelCallValue: config.get("rules.lowLevelCallValue", true) ?? true,
+        txOrigin: config.get("rules.txOrigin", true),
+        selfdestruct: config.get("rules.selfdestruct", true),
+        delegatecall: config.get("rules.delegatecall", true),
+        lowLevelCallValue: config.get("rules.lowLevelCallValue", true),
         // Syntax rules
-        missingSemicolon: config.get("rules.missingSemicolon", true) ?? true,
-        missingParentheses: config.get("rules.missingParentheses", true) ?? true,
-        missingBraces: config.get("rules.missingBraces", true) ?? true,
-        missingReturn: config.get("rules.missingReturn", true) ?? true,
-        wrongKeywords: config.get("rules.wrongKeywords", true) ?? true,
-        missingDataType: config.get("rules.missingDataType", true) ?? true,
-        missingPayable: config.get("rules.missingPayable", true) ?? true,
-        functionNaming: config.get("rules.functionNaming", true) ?? true,
-        variableNaming: config.get("rules.variableNaming", true) ?? true,
-        contractNaming: config.get("rules.contractNaming", true) ?? true,
+        missingSemicolon: config.get("rules.missingSemicolon", true),
+        missingParentheses: config.get("rules.missingParentheses", true),
+        missingBraces: config.get("rules.missingBraces", true),
+        missingReturn: config.get("rules.missingReturn", true),
+        wrongKeywords: config.get("rules.wrongKeywords", true),
+        missingDataType: config.get("rules.missingDataType", true),
+        missingPayable: config.get("rules.missingPayable", true),
+        functionNaming: config.get("rules.functionNaming", true),
+        variableNaming: config.get("rules.variableNaming", true),
+        contractNaming: config.get("rules.contractNaming", true),
     };
     // Gọi bộ phân tích cốt lõi với nội dung tài liệu
     const text = document.getText();
     const naming = {
-        functionPattern: config.get("naming.functionPattern", "^[a-z][A-Za-z0-9_]*$"),
-        variablePattern: config.get("naming.variablePattern", "^[a-z][A-Za-z0-9_]*$"),
-        constantPattern: config.get("naming.constantPattern", "^[A-Z][A-Z0-9_]*$"),
-        contractPattern: config.get("naming.contractPattern", "^[A-Z][A-Za-z0-9]*$"),
+        functionPattern: config.get("naming.functionPattern", "^[A-Za-z_][A-Za-z0-9_]*$"),
+        variablePattern: config.get("naming.variablePattern", "^[A-Za-z_][A-Za-z0-9_]*$"),
+        constantPattern: config.get("naming.constantPattern", "^[A-Za-z_][A-Za-z0-9_]*$"),
+        contractPattern: config.get("naming.contractPattern", "^[A-Za-z_][A-Za-z0-9_]*$"),
     };
     const findings = (0, solidityAnalyzer_1.analyzeText)(text, rules, maxProblems, naming);
     // Chuyển các kết quả (findings) thành Diagnostic để VS Code hiển thị

@@ -48,11 +48,19 @@ const vscode = __importStar(require("vscode"));
 function analyzeText(content, rules, maxProblems, naming) {
     const findings = [];
     const lines = content.split(/\r?\n/);
+    const reportedKeys = new Set();
+    // Theo dõi các identifier bị thiếu kiểu để cảnh báo khi được sử dụng ở các dòng sau
+    const missingTypeIdentifiers = new Set();
     // Hàm helper để thêm finding vào danh sách
     const pushFinding = (lineIndex, start, end, message, code, severity) => {
         if (findings.length >= maxProblems) {
             return;
         }
+        const key = `${lineIndex}:${start}:${end}:${code}`;
+        if (reportedKeys.has(key)) {
+            return;
+        }
+        reportedKeys.add(key);
         findings.push({
             message,
             code,
@@ -377,15 +385,186 @@ function analyzeText(content, rules, maxProblems, naming) {
         }
         // 9. MISSING_DATA_TYPE - Kiểm tra khai báo biến thiếu kiểu dữ liệu
         if (rules.missingDataType) {
-            const varDeclarationPattern = /^\s*(public|private|internal|external)?\s*(memory|storage|calldata)?\s*\w+\s*=/i;
-            const match = line.match(varDeclarationPattern);
-            if (match && !line.includes("//") && !line.includes("/*")) {
-                // Kiểm tra xem có phải khai báo biến local thiếu type
-                const beforeEqual = line.substring(0, line.indexOf("=")).trim();
-                const hasDataType = /\b(uint|int|string|bool|address|bytes|mapping|struct)/i.test(beforeEqual);
-                if (!hasDataType && beforeEqual.split(/\s+/).length <= 2) {
-                    const idx = beforeEqual.length - 1;
-                    pushFinding(i, idx, idx + 1, "Missing data type declaration for variable.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
+            const noComment = stripInlineComments(line);
+            // 9.1 Thiếu kiểu ở khai báo biến (trong cùng dòng, kể cả sau '{')
+            // Tìm các đoạn bắt đầu câu hoặc sau ';' hoặc '{' có dạng <identifier> =
+            const assignRx = /(^(?:\s*)|[;{]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*=/g;
+            let mAssign;
+            while ((mAssign = assignRx.exec(noComment)) !== null) {
+                const prefix = mAssign[1] || "";
+                const name = mAssign[2];
+                const nameStart = mAssign.index + prefix.length;
+                // Báo lỗi: thiếu kiểu dữ liệu cho biến
+                pushFinding(i, nameStart, nameStart + name.length, "Missing data type declaration for variable.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
+                missingTypeIdentifiers.add(name);
+                // tránh vòng lặp vô hạn nếu regex match zero-width
+                if (assignRx.lastIndex === mAssign.index)
+                    assignRx.lastIndex += 1;
+            }
+            // 9.1.a Khai báo mảng thiếu kiểu dữ liệu: [] a; hoặc [] a = ...
+            const arrayDeclRx = /(^(?:\s*)|[;{]\s*)(\[\s*\])\s*([A-Za-z_][A-Za-z0-9_]*)\s*(;|=)/g;
+            let mArray;
+            while ((mArray = arrayDeclRx.exec(noComment)) !== null) {
+                const prefix = mArray[1] || "";
+                const bracket = mArray[2];
+                const name = mArray[3];
+                const bracketStart = mArray.index + prefix.length; // vị trí '['
+                pushFinding(i, bracketStart, bracketStart + bracket.length, "Missing data type declaration for variable.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
+                // Không thêm tên biến mảng vào danh sách theo dõi để tránh báo lỗi trùng tại tên
+                if (arrayDeclRx.lastIndex === mArray.index)
+                    arrayDeclRx.lastIndex += 1;
+            }
+            // 9.1.b Thiếu kiểu trong tuple assignment: (success, ...) = ...
+            const tuple = noComment.match(/\(([^)]*)\)\s*=/);
+            if (tuple && tuple.index !== undefined) {
+                const content = tuple[1];
+                const tupleStart = noComment.indexOf(content);
+                const parts = content.split(",");
+                let cursor = tupleStart;
+                for (const rawPart of parts) {
+                    const part = rawPart;
+                    const trimmed = part.trim();
+                    if (trimmed === "") {
+                        cursor += part.length + 1;
+                        continue;
+                    }
+                    const startsWithType = /^(uint\d*|int\d*|uint|int|address|bool|string|bytes\d*|bytes|mapping\s*\(|struct\s+\w+|enum\s+\w+|calldata|memory|storage)\b/i.test(trimmed);
+                    if (!startsWithType) {
+                        const idMatch = part.match(/[A-Za-z_][A-Za-z0-9_]*/);
+                        if (idMatch && idMatch.index !== undefined) {
+                            const startCol = cursor + idMatch.index;
+                            pushFinding(i, startCol, startCol + idMatch[0].length, "Missing data type declaration for variable.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
+                            missingTypeIdentifiers.add(idMatch[0]);
+                        }
+                    }
+                    cursor += part.length + 1;
+                }
+            }
+            // 9.1.c Thiếu kiểu trong khai báo kết thúc bằng ';' không có '='
+            // Ví dụ: "public number;" hoặc "number;"
+            const semiDecl = noComment.match(/^\s*(public|private|internal|external)?\s*([A-Za-z_][A-Za-z0-9_]*)\s*;\s*$/);
+            if (semiDecl && semiDecl.index !== undefined) {
+                // Nếu dòng không chứa bất kỳ type keyword nào, coi là thiếu kiểu
+                const hasType = /(uint\d*|int\d*|uint|int|address|bool|string|bytes\d*|bytes|mapping\s*\(|struct\s+\w+|enum\s+\w+)/i.test(noComment);
+                if (!hasType) {
+                    const name = semiDecl[2];
+                    const nameIdx = noComment.indexOf(name);
+                    if (nameIdx >= 0) {
+                        pushFinding(i, nameIdx, nameIdx + name.length, "Missing data type declaration for variable.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
+                        missingTypeIdentifiers.add(name);
+                    }
+                }
+            }
+            // 9.2 Thiếu kiểu trong danh sách tham số hàm (chỉ xử lý khi có cùng dòng)
+            const funcSig = noComment.match(/\bfunction\b[^\{]*\(([^)]*)\)/);
+            if (funcSig && funcSig.index !== undefined) {
+                const paramsStr = funcSig[1];
+                let cursor = noComment.indexOf(paramsStr);
+                const params = paramsStr.split(",");
+                for (const p of params) {
+                    const raw = p;
+                    const param = p.trim();
+                    if (param === "") {
+                        cursor += raw.length + 1; // +1 for comma
+                        continue;
+                    }
+                    // 9.2.a Tham số mảng thiếu element type: [] memory words
+                    const arrParamStarts = /^\s*\[\s*\]\s*(?:memory|calldata|storage)?\s*[A-Za-z_][A-Za-z0-9_]*/i.test(param);
+                    if (arrParamStarts) {
+                        const leading = raw.match(/^\s*/)?.[0].length ?? 0;
+                        const bracketRel = raw.slice(leading).indexOf("[");
+                        if (bracketRel >= 0) {
+                            const bracketStart = cursor + leading + bracketRel;
+                            pushFinding(i, bracketStart, bracketStart + 2, // highlight "[]"
+                            "Missing data type declaration for variable.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
+                            cursor += raw.length + 1;
+                            continue;
+                        }
+                    }
+                    // Nếu tham số bắt đầu không phải type (mà là identifier) → lỗi
+                    const startsWithType = /^(uint\d*|int\d*|uint|int|address|bool|string|bytes\d*|bytes|mapping\s*\(|struct\s+\w+|enum\s+\w+|calldata|memory|storage)\b/i.test(param);
+                    if (!startsWithType) {
+                        const idMatch = raw.match(/[A-Za-z_][A-Za-z0-9_]*/);
+                        if (idMatch && idMatch.index !== undefined) {
+                            const startCol = cursor + idMatch.index;
+                            const len = idMatch[0].length;
+                            pushFinding(i, startCol, startCol + len, "Missing data type declaration for variable.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
+                            missingTypeIdentifiers.add(idMatch[0]);
+                        }
+                    }
+                    cursor += raw.length + 1; // move past this param and comma
+                }
+                // 9.2.c Fallback: bắt tham số chỉ là 1 identifier (không type)
+                const reUntypedParam = /(?:^|,)\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?=,|$)/g;
+                let mUntyped;
+                while ((mUntyped = reUntypedParam.exec(paramsStr)) !== null) {
+                    const ident = mUntyped[1];
+                    // Kiểm tra lại xem đoạn tham số này có chứa type keyword ở trước không (trong cùng phân đoạn)
+                    // Lấy phân đoạn thô từ dấu phẩy trước đến dấu phẩy sau
+                    const segStart = mUntyped.index;
+                    const segEnd = reUntypedParam.lastIndex;
+                    const segment = paramsStr.slice(segStart, segEnd);
+                    const hasTypeInSeg = /(uint\d*|int\d*|uint|int|address|bool|string|bytes\d*|bytes|mapping\s*\(|struct\s+\w+|enum\s+\w+|calldata|memory|storage)/i.test(segment);
+                    if (!hasTypeInSeg) {
+                        const absIdx = noComment.indexOf(paramsStr) + segStart + segment.indexOf(ident);
+                        pushFinding(i, absIdx, absIdx + ident.length, "Missing data type declaration for variable.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
+                    }
+                    if (reUntypedParam.lastIndex === mUntyped.index)
+                        reUntypedParam.lastIndex += 1;
+                }
+                // 9.2.d Fallback cuối: bắt tham số cuối cùng không type trước dấu ')'
+                const tail = paramsStr.match(/,\s*([A-Za-z_][A-Za-z0-9_]*)\s*$/);
+                if (tail && tail.index !== undefined) {
+                    const segStart = tail.index;
+                    const segment = paramsStr.slice(segStart);
+                    const hasTypeInSeg = /(uint\d*|int\d*|uint|int|address|bool|string|bytes\d*|bytes|mapping\s*\(|struct\s+\w+|enum\s+\w+|calldata|memory|storage)/i.test(segment);
+                    if (!hasTypeInSeg) {
+                        const ident = tail[1];
+                        const absIdx = noComment.indexOf(paramsStr) + segStart + segment.indexOf(ident);
+                        pushFinding(i, absIdx, absIdx + ident.length, "Missing data type declaration for variable.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
+                    }
+                }
+            }
+            // 9.2.b Fallback chắc chắn: quét trực tiếp tham số mảng thiếu element type trong toàn bộ danh sách tham số
+            const funcLine = noComment;
+            const parenStart = funcLine.indexOf("(");
+            const parenEnd = funcLine.indexOf(")", parenStart + 1);
+            if (parenStart >= 0 && parenEnd > parenStart) {
+                const inside = funcLine.slice(parenStart + 1, parenEnd);
+                const baseIndex = parenStart + 1;
+                const reEmptyArrayParam = /\[\s*\]\s*(?:memory|calldata|storage)?\s*[A-Za-z_][A-Za-z0-9_]*/g;
+                let mArr;
+                while ((mArr = reEmptyArrayParam.exec(inside)) !== null) {
+                    const firstBracketRel = mArr[0].indexOf("[");
+                    const relIdx = mArr.index + firstBracketRel;
+                    // Kiểm tra ký tự không phải khoảng trắng ngay trước '[' để tránh match "string[]"
+                    let k = relIdx - 1;
+                    while (k >= 0 && /\s/.test(inside[k]))
+                        k -= 1;
+                    const prevChar = k >= 0 ? inside[k] : '';
+                    const prevIsTyped = /[A-Za-z0-9_\]]/.test(prevChar); // 'string[]' hoặc 'bytes32[]'
+                    if (prevIsTyped) {
+                        // Bỏ qua vì đây là typed array hợp lệ
+                        if (reEmptyArrayParam.lastIndex === mArr.index)
+                            reEmptyArrayParam.lastIndex += 1;
+                        continue;
+                    }
+                    const absIdx = baseIndex + relIdx;
+                    pushFinding(i, absIdx, absIdx + 2, "Missing data type declaration for variable.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
+                    if (reEmptyArrayParam.lastIndex === mArr.index)
+                        reEmptyArrayParam.lastIndex += 1;
+                }
+            }
+        }
+        // 9.x Sử dụng biến thiếu kiểu dữ liệu sau khi đã đánh dấu
+        if (missingTypeIdentifiers.size > 0) {
+            const noComment = stripInlineComments(line);
+            for (const id of missingTypeIdentifiers) {
+                const rx = new RegExp(`\\b${id}\\b`);
+                const mUse = noComment.match(rx);
+                if (mUse && mUse.index !== undefined) {
+                    const start = mUse.index;
+                    pushFinding(i, start, start + id.length, "Missing data type declaration for variable.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
                 }
             }
         }

@@ -104,31 +104,30 @@ function runAnalysis(document: vscode.TextDocument) {
   const config = vscode.workspace.getConfiguration("solidityStaticAnalyzer");
   const maxProblems = config.get<number>("maxProblems", 100);
   const rules = {
-    txOrigin: config.get<boolean>("rules.txOrigin", true) ?? true,
-    selfdestruct: config.get<boolean>("rules.selfdestruct", true) ?? true,
-    delegatecall: config.get<boolean>("rules.delegatecall", true) ?? true,
-    lowLevelCallValue:
-      config.get<boolean>("rules.lowLevelCallValue", true) ?? true,
+    txOrigin: config.get<boolean>("rules.txOrigin", true),
+    selfdestruct: config.get<boolean>("rules.selfdestruct", true),
+    delegatecall: config.get<boolean>("rules.delegatecall", true),
+    lowLevelCallValue: config.get<boolean>("rules.lowLevelCallValue", true),
     // Syntax rules
-    missingSemicolon: config.get<boolean>("rules.missingSemicolon", true) ?? true,
-    missingParentheses: config.get<boolean>("rules.missingParentheses", true) ?? true,
-    missingBraces: config.get<boolean>("rules.missingBraces", true) ?? true,
-    missingReturn: config.get<boolean>("rules.missingReturn", true) ?? true,
-    wrongKeywords: config.get<boolean>("rules.wrongKeywords", true) ?? true,
-    missingDataType: config.get<boolean>("rules.missingDataType", true) ?? true,
-    missingPayable: config.get<boolean>("rules.missingPayable", true) ?? true,
-    functionNaming: config.get<boolean>("rules.functionNaming", true) ?? true,
-    variableNaming: config.get<boolean>("rules.variableNaming", true) ?? true,
-    contractNaming: config.get<boolean>("rules.contractNaming", true) ?? true,
+    missingSemicolon: config.get<boolean>("rules.missingSemicolon", true),
+    missingParentheses: config.get<boolean>("rules.missingParentheses", true),
+    missingBraces: config.get<boolean>("rules.missingBraces", true),
+    missingReturn: config.get<boolean>("rules.missingReturn", true),
+    wrongKeywords: config.get<boolean>("rules.wrongKeywords", true),
+    missingDataType: config.get<boolean>("rules.missingDataType", true),
+    missingPayable: config.get<boolean>("rules.missingPayable", true),
+    functionNaming: config.get<boolean>("rules.functionNaming", true),
+    variableNaming: config.get<boolean>("rules.variableNaming", true),
+    contractNaming: config.get<boolean>("rules.contractNaming", true),
   };
 
   // Gọi bộ phân tích cốt lõi với nội dung tài liệu
   const text = document.getText();
   const naming = {
-    functionPattern: config.get<string>("naming.functionPattern", "^[a-z][A-Za-z0-9_]*$")!,
-    variablePattern: config.get<string>("naming.variablePattern", "^[a-z][A-Za-z0-9_]*$")!,
-    constantPattern: config.get<string>("naming.constantPattern", "^[A-Z][A-Z0-9_]*$")!,
-    contractPattern: config.get<string>("naming.contractPattern", "^[A-Z][A-Za-z0-9]*$")!,
+    functionPattern: config.get<string>("naming.functionPattern", "^[A-Za-z_][A-Za-z0-9_]*$")!,
+    variablePattern: config.get<string>("naming.variablePattern", "^[A-Za-z_][A-Za-z0-9_]*$")!,
+    constantPattern: config.get<string>("naming.constantPattern", "^[A-Za-z_][A-Za-z0-9_]*$")!,
+    contractPattern: config.get<string>("naming.contractPattern", "^[A-Za-z_][A-Za-z0-9_]*$")!,
   };
   const findings = analyzeText(text, rules, maxProblems, naming);
   // Chuyển các kết quả (findings) thành Diagnostic để VS Code hiển thị
