@@ -1,0 +1,2 @@
+*.js linguist-generated=false
+out/* linguist-generated=false
