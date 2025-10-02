@@ -85,6 +85,41 @@
           "default": true,
           "description": "Detect missing payable modifier for ETH handling functions."
         },
+        "solidityStaticAnalyzer.rules.functionNaming": {
+          "type": "boolean",
+          "default": true,
+          "description": "Validate function identifier syntax (no leading digits, no special chars)."
+        },
+        "solidityStaticAnalyzer.rules.variableNaming": {
+          "type": "boolean",
+          "default": true,
+          "description": "Validate variable identifier syntax (no leading digits, no special chars)."
+        },
+        "solidityStaticAnalyzer.rules.contractNaming": {
+          "type": "boolean",
+          "default": true,
+          "description": "Validate contract/interface/library identifier syntax (no leading digits, no special chars)."
+        },
+        "solidityStaticAnalyzer.naming.functionPattern": {
+          "type": "string",
+          "default": "^[A-Za-z_][A-Za-z0-9_]*$",
+          "description": "Regex for valid function identifiers."
+        },
+        "solidityStaticAnalyzer.naming.variablePattern": {
+          "type": "string",
+          "default": "^[A-Za-z_][A-Za-z0-9_]*$",
+          "description": "Regex for valid variable identifiers."
+        },
+        "solidityStaticAnalyzer.naming.constantPattern": {
+          "type": "string",
+          "default": "^[A-Za-z_][A-Za-z0-9_]*$",
+          "description": "Regex for valid constant identifiers."
+        },
+        "solidityStaticAnalyzer.naming.contractPattern": {
+          "type": "string",
+          "default": "^[A-Za-z_][A-Za-z0-9_]*$",
+          "description": "Regex for valid contract/interface/library identifiers."
+        },
         "solidityStaticAnalyzer.maxProblems": {
           "type": "number",
           "default": 100,

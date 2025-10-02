@@ -26,6 +26,10 @@ export type AnalyzerRules = {
   wrongKeywords: boolean;
   missingDataType: boolean;
   missingPayable: boolean;
+  // Naming Rules
+  functionNaming: boolean;
+  variableNaming: boolean;
+  contractNaming: boolean;
 };
 
 export type Finding = {
@@ -36,6 +40,13 @@ export type Finding = {
     start: { line: number; character: number };
     end: { line: number; character: number };
   };
+};
+
+export type NamingConfig = {
+  functionPattern: string;
+  variablePattern: string;
+  constantPattern: string;
+  contractPattern: string;
 };
 
 // =============================================================================
@@ -52,7 +63,8 @@ export type Finding = {
 export function analyzeText(
   content: string,
   rules: AnalyzerRules,
-  maxProblems: number
+  maxProblems: number,
+  naming?: NamingConfig
 ): Finding[] {
   const findings: Finding[] = [];
   const lines = content.split(/\r?\n/);
@@ -153,6 +165,13 @@ export function analyzeText(
         }
       }
       return Math.max(0, codePart.length - 1);
+    };
+    const makeRegex = (pattern: string) => {
+      try {
+        return new RegExp(pattern);
+      } catch (_) {
+        return undefined;
+      }
     };
 
     // =============================================================================
@@ -548,6 +567,158 @@ export function analyzeText(
             "MISSING_PAYABLE",
             vscode.DiagnosticSeverity.Warning
           );
+        }
+      }
+    }
+
+    // =============================================================================
+    // NAMING RULES - Quy tắc đặt tên function/variable
+    // =============================================================================
+
+    // 11. FUNCTION_NAMING - Kiểm tra tên hàm
+    if (rules.functionNaming && naming) {
+      const lineClean = stripInlineComments(line);
+      const mFunc = lineClean.match(/\bfunction\b([^\(]*)\(/);
+      if (mFunc && mFunc.index !== undefined) {
+        const seg = mFunc[1];
+        const segStart = mFunc.index + mFunc[0].indexOf(seg);
+        // Bỏ khoảng trắng đầu
+        const leadingWs = seg.match(/^\s*/)?.[0].length ?? 0;
+        const firstIdx = leadingWs;
+        const firstAbs = segStart + firstIdx;
+        const firstCh = seg[firstIdx];
+        // Nếu ký tự đầu không phải là chữ hoặc '_' → lỗi ngay tại đó
+        if (!firstCh || !/[A-Za-z_]/.test(firstCh)) {
+          pushFinding(i, firstAbs, firstAbs + 1, "Invalid function identifier.", "FUNCTION_NAMING", vscode.DiagnosticSeverity.Error);
+        } else {
+          // Lấy identifier đầu
+          const idMatch = seg.slice(firstIdx).match(/^[A-Za-z_][A-Za-z0-9_]*/);
+          const name = idMatch ? idMatch[0] : "";
+          const nameStart = firstAbs;
+          const nameEnd = nameStart + name.length;
+          // Kiểm tra phần còn lại trước '('
+          const rest = seg.slice(firstIdx + name.length);
+          if (/[^\s]/.test(rest)) {
+            // Có ký tự lạ như '.' hoặc extra token → lỗi tổng quát
+            pushFinding(i, nameStart, nameEnd, "Invalid function identifier.", "FUNCTION_NAMING", vscode.DiagnosticSeverity.Error);
+          } else {
+            const fnRegex = makeRegex(naming.functionPattern);
+            if (fnRegex && !fnRegex.test(name)) {
+              pushFinding(i, nameStart, nameEnd, `Invalid function identifier '${name}'.`, "FUNCTION_NAMING", vscode.DiagnosticSeverity.Error);
+            }
+          }
+        }
+      }
+    }
+
+    // 12. VARIABLE_NAMING - Kiểm tra tên biến (state/local)
+    if (rules.variableNaming && naming) {
+      // Heuristic: a declaration that starts with a type keyword or mapping(
+      const decl = stripInlineComments(line).trim();
+      const startsWithType = /^(?:uint\d*|int\d*|uint|int|address|bool|string|bytes\d*|bytes|mapping\s*\(|struct\s+\w+|enum\s+\w+)/i.test(decl);
+      const isFunctionLine = /^\s*function\b/i.test(decl);
+      const isEventOrOther = /^\s*(contract|interface|library|event|modifier|enum|struct)\b/i.test(decl);
+      if (startsWithType && !isFunctionLine && !isEventOrOther) {
+        // Remove mapping generics to simplify tokenization
+        const normalized = decl.replace(/\b(mapping\s*\([^)]*\))/gi, "mapping");
+        const tokens = normalized.split(/\s+/).filter(Boolean);
+        // Find first identifier token after type and modifiers
+        const modifierKeywords = new Set([
+          "public",
+          "private",
+          "internal",
+          "external",
+          "view",
+          "pure",
+          "payable",
+          "constant",
+          "immutable",
+          "memory",
+          "storage",
+          "calldata",
+        ]);
+        let identifier: string | undefined;
+        let identifierStart = -1;
+        let identifierTokenIndex = -1;
+        // Find index in original line as well
+        const original = stripInlineComments(line);
+        // Iterate tokens; skip first (type)
+        for (let t = 1; t < tokens.length; t += 1) {
+          const tok = tokens[t];
+          const isModifier = modifierKeywords.has(tok.toLowerCase());
+          const isArray = /\[.*\]$/.test(tok);
+          if (!isModifier && !isArray) {
+            // Lấy token tên thô, bỏ các ký tự kết thúc như ';', '=', '{' (KHÔNG bỏ dấu ',')
+            const base = tok.replace(/[;={].*$/, "").trim();
+            if (base.length > 0) {
+              identifier = base;
+              identifierStart = original.indexOf(tok);
+              identifierTokenIndex = t;
+              break;
+            }
+          }
+        }
+        if (identifier && identifierStart >= 0) {
+          // Nếu token tiếp theo cũng là identifier (ví dụ: "num ber"), coi như có khoảng trắng trong tên → lỗi tại token đầu
+          const nextTok = tokens[identifierTokenIndex + 1];
+          const nextIsArray = nextTok ? /\[.*\]$/.test(nextTok) : false;
+          const nextIsModifier = nextTok ? modifierKeywords.has(nextTok?.toLowerCase()) : false;
+          const nextLooksIdentifier = nextTok ? /^[A-Za-z_][A-Za-z0-9_]*;?$/.test(nextTok) : false;
+          if (nextTok && !nextIsArray && !nextIsModifier && nextLooksIdentifier) {
+            pushFinding(
+              i,
+              identifierStart,
+              identifierStart + identifier.length,
+              "Invalid variable identifier.",
+              "VARIABLE_NAMING",
+              vscode.DiagnosticSeverity.Error
+            );
+          } else {
+            const identifierEnd = identifierStart + identifier.length;
+            const isConstant = /\b(constant|immutable)\b/i.test(decl) || /\bconstant\b/i.test(decl);
+            const varRegex = makeRegex(isConstant ? naming.constantPattern : naming.variablePattern);
+            if (varRegex && !varRegex.test(identifier)) {
+              pushFinding(
+                i,
+                identifierStart,
+                identifierEnd,
+                `Invalid variable identifier '${identifier}'.`,
+                "VARIABLE_NAMING",
+                vscode.DiagnosticSeverity.Error
+              );
+            }
+          }
+        }
+      }
+    }
+
+    // 13. CONTRACT_NAMING - Kiểm tra tên contract/interface/library
+    if (rules.contractNaming && naming) {
+      const decl = stripInlineComments(line);
+      const m = decl.match(/\b(contract|interface|library)\b([^\{]*)\{/);
+      if (m && m.index !== undefined) {
+        const seg = m[2];
+        const segStart = m.index + m[0].indexOf(seg);
+        const leadingWs = seg.match(/^\s*/)?.[0].length ?? 0;
+        const firstIdx = leadingWs;
+        const firstAbs = segStart + firstIdx;
+        const firstCh = seg[firstIdx];
+        if (!firstCh || !/[A-Za-z_]/.test(firstCh)) {
+          pushFinding(i, firstAbs, firstAbs + 1, "Invalid contract/interface/library identifier.", "CONTRACT_NAMING", vscode.DiagnosticSeverity.Error);
+        } else {
+          const idMatch = seg.slice(firstIdx).match(/^[A-Za-z_][A-Za-z0-9_]*/);
+          const name = idMatch ? idMatch[0] : "";
+          const nameStart = firstAbs;
+          const nameEnd = nameStart + name.length;
+          const rest = seg.slice(firstIdx + name.length);
+          if (/[^\s]/.test(rest)) {
+            pushFinding(i, nameStart, nameEnd, "Invalid contract/interface/library identifier.", "CONTRACT_NAMING", vscode.DiagnosticSeverity.Error);
+          } else {
+            const rx = makeRegex(naming.contractPattern);
+            if (rx && !rx.test(name)) {
+              pushFinding(i, nameStart, nameEnd, `Invalid contract/interface/library identifier '${name}'.`, "CONTRACT_NAMING", vscode.DiagnosticSeverity.Error);
+            }
+          }
         }
       }
     }

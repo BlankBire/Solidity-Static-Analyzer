@@ -117,11 +117,20 @@ function runAnalysis(document: vscode.TextDocument) {
     wrongKeywords: config.get<boolean>("rules.wrongKeywords", true) ?? true,
     missingDataType: config.get<boolean>("rules.missingDataType", true) ?? true,
     missingPayable: config.get<boolean>("rules.missingPayable", true) ?? true,
+    functionNaming: config.get<boolean>("rules.functionNaming", true) ?? true,
+    variableNaming: config.get<boolean>("rules.variableNaming", true) ?? true,
+    contractNaming: config.get<boolean>("rules.contractNaming", true) ?? true,
   };
 
   // Gọi bộ phân tích cốt lõi với nội dung tài liệu
   const text = document.getText();
-  const findings = analyzeText(text, rules, maxProblems);
+  const naming = {
+    functionPattern: config.get<string>("naming.functionPattern", "^[a-z][A-Za-z0-9_]*$")!,
+    variablePattern: config.get<string>("naming.variablePattern", "^[a-z][A-Za-z0-9_]*$")!,
+    constantPattern: config.get<string>("naming.constantPattern", "^[A-Z][A-Z0-9_]*$")!,
+    contractPattern: config.get<string>("naming.contractPattern", "^[A-Z][A-Za-z0-9]*$")!,
+  };
+  const findings = analyzeText(text, rules, maxProblems, naming);
   // Chuyển các kết quả (findings) thành Diagnostic để VS Code hiển thị
   const diagnostics: vscode.Diagnostic[] = findings.map((f) => {
     const range = new vscode.Range(

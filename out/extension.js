@@ -135,10 +135,19 @@ function runAnalysis(document) {
         wrongKeywords: config.get("rules.wrongKeywords", true) ?? true,
         missingDataType: config.get("rules.missingDataType", true) ?? true,
         missingPayable: config.get("rules.missingPayable", true) ?? true,
+        functionNaming: config.get("rules.functionNaming", true) ?? true,
+        variableNaming: config.get("rules.variableNaming", true) ?? true,
+        contractNaming: config.get("rules.contractNaming", true) ?? true,
     };
     // Gọi bộ phân tích cốt lõi với nội dung tài liệu
     const text = document.getText();
-    const findings = (0, solidityAnalyzer_1.analyzeText)(text, rules, maxProblems);
+    const naming = {
+        functionPattern: config.get("naming.functionPattern", "^[a-z][A-Za-z0-9_]*$"),
+        variablePattern: config.get("naming.variablePattern", "^[a-z][A-Za-z0-9_]*$"),
+        constantPattern: config.get("naming.constantPattern", "^[A-Z][A-Z0-9_]*$"),
+        contractPattern: config.get("naming.contractPattern", "^[A-Z][A-Za-z0-9]*$"),
+    };
+    const findings = (0, solidityAnalyzer_1.analyzeText)(text, rules, maxProblems, naming);
     // Chuyển các kết quả (findings) thành Diagnostic để VS Code hiển thị
     const diagnostics = findings.map((f) => {
         const range = new vscode.Range(new vscode.Position(f.range.start.line, f.range.start.character), new vscode.Position(f.range.end.line, f.range.end.character));
