@@ -198,7 +198,7 @@
         <article class="card" aria-label="Abstract">
           <h2>Abstract</h2>
           <p style="font-size:11pt; color:#1e2432; line-height:1.6; text-align:justify;">
-            <strong>Solidity-Static-Analyzer</strong> là công cụ phân tích tĩnh dành cho smart contract viết bằng Solidity, nhằm phát hiện sớm lỗ hổng bảo mật và mùi mã trong suốt vòng đời phát triển. Dựa trên nền tảng JavaScript/TypeScript (≈52.5% JS và ≈47.5% TS), dự án hướng đến kiến trúc mô-đun có thể mở rộng theo mô hình rule/plugin: từ nạp mã nguồn, phân tích cú pháp (AST), xây dựng đồ thị điều khiển/luồng dữ liệu (CFG/DFA), đến thực thi các quy tắc kiểm tra ngữ nghĩa. Công cụ kỳ vọng cung cấp cả giao diện CLI và API, hỗ trợ xuất báo cáo ở nhiều định dạng phục vụ CI/CD (ví dụ JSON, SARIF, HTML), giúp tích hợp thuận tiện với các nền tảng quét mã và quy trình kiểm thử tự động. Trọng tâm phát hiện bao gồm các rủi ro phổ biến của hợp đồng thông minh như reentrancy, delegatecall không an toàn, selfdestruct, lỗ hổng kiểm soát truy cập, biến trạng thái không khởi tạo và khuếch tán dữ liệu nhạy cảm. Kiến trúc tách lớp (loader, parser, engine, rules, reporters) hỗ trợ cache và thực thi song song nhằm tối ưu hiệu năng trên codebase lớn, đồng thời đơn giản hóa việc bổ sung quy tắc mới và tuỳ biến theo dự án.
+            <strong>Solidity-Static-Analyzer</strong> là công cụ phân tích tĩnh dành cho smart contract viết bằng Solidity, nhằm phát hiện sớm lỗ hổng bảo mật và mùi mã trong suốt vòng đời phát triển. Dựa trên nền tảng JavaScript/TypeScript, dự án hướng đến kiến trúc mô-đun có thể mở rộng theo mô hình rule/plugin: từ nạp mã nguồn, phân tích cú pháp (AST), xây dựng đồ thị điều khiển/luồng dữ liệu (CFG/DFA), đến thực thi các quy tắc kiểm tra ngữ nghĩa. Công cụ kỳ vọng cung cấp cả giao diện CLI và API, hỗ trợ xuất báo cáo ở nhiều định dạng phục vụ CI/CD (ví dụ JSON, SARIF, HTML), giúp tích hợp thuận tiện với các nền tảng quét mã và quy trình kiểm thử tự động. Trọng tâm phát hiện bao gồm các rủi ro phổ biến của hợp đồng thông minh như reentrancy, delegatecall không an toàn, selfdestruct, lỗ hổng kiểm soát truy cập, biến trạng thái không khởi tạo và khuếch tán dữ liệu nhạy cảm. Kiến trúc tách lớp (loader, parser, engine, rules, reporters) hỗ trợ cache và thực thi song song nhằm tối ưu hiệu năng trên codebase lớn, đồng thời đơn giản hóa việc bổ sung quy tắc mới và tuỳ biến theo dự án.
           </p>
         </article>
 
@@ -209,7 +209,8 @@
             <li><strong>Bài toán:</strong> Phát hiện sớm lỗi trong mã nguồn để giảm rủi ro bảo mật và chi phí audit.</li>
             <li><strong>Đóng góp:</strong> Plugin quét mã trên VS Code, tự động phát hiện và gợi ý khắc phục lỗi.</li>
           </ul>
-          <div class="placeholder" aria-hidden="true">(Hình minh họa ngữ cảnh hoặc pipeline)</div>
+          <!-- <div class="placeholder" aria-hidden="true">(Hình minh họa ngữ cảnh hoặc pipeline)</div> -->
+          <img src="introduction.png" alt="Sơ đồ minh họa quy trình phân tích mã của plugin" style="width: 100%; height: auto; border-radius: 4mm; margin-top: 4mm;">
         </article>
 
         <article class="card small" aria-label="Target">
@@ -447,9 +448,9 @@
         </ul>
       </article>
 
-    <footer class="footer">
+    <!-- <footer class="footer">
       <div>📚 Nguồn: <a href="https://github.com/BlankBire/Solidity-Static-Analyzer">github.com/BlankBire/Solidity-Static-Analyzer</a></div>
-    </footer>
+    </footer> -->
   </main>
 </body>
 </html>
