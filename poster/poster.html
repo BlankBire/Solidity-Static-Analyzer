@@ -1,456 +1,377 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="vi">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Poster – Plugin Phân tích Mã Tĩnh cho Solidity trên VS Code</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --bg: #f4f7fb;
-      --panel: #ffffff;
-      --ink: #1e2432;
-      --muted: #5c667a;
-      --brand: #2b7fff;
-      --line: #dfe7f3;
-    }
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Plugin Phân Tích Mã Tĩnh cho Solidity trên VS Code</title>
+    <style>
+      @page {
+        size: A4;
+        margin: 0;
+      }
 
-    html, body {
-      margin: 0;
-      background: var(--bg);
-      font-family: Inter, system-ui, sans-serif;
-    }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
 
-    .poster {
-      width: 420mm;
-      height: 594mm;
-      background: linear-gradient(180deg, #f8fbff 0%, #f3f7fd 100%);
-      display: grid;
-      grid-template-rows: auto auto 1fr auto;
-      gap: 8mm;
-      padding: 16mm;
-      box-sizing: border-box;
-    }
+      *:not(.system-diagram) {
+        position: relative;
+        z-index: 1000;
+      }
 
-    .title {
-      background: var(--panel);
-      border: 0.6mm solid var(--line);
-      border-radius: 6mm;
-      padding: 10mm;
-      box-shadow: 0 2mm 5mm rgba(0,0,0,.05);
-    }
+      body {
+        width: 210mm;
+        height: 297mm;
+        font-family: "Segoe UI", Arial, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 0mm;
+        color: #2d3748;
+      }
 
-    .title h1 {
-      margin: 0 0 2mm;
-      font-size: 28pt;
-      color: var(--ink);
-    }
+      .poster {
+        background: white;
+        height: 100%;
+        border-radius: 8px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        padding: 10mm;
+        display: flex;
+        flex-direction: column;
+      }
 
-    .subtitle {
-      color: var(--muted);
-      font-size: 11pt;
-    }
+      .header {
+        text-align: center;
+        margin-bottom: 12px;
+        border-bottom: 3px solid #667eea;
+        padding-bottom: 10px;
+      }
 
-    .meta {
-      margin-top: 3mm;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 4mm;
-      font-size: 10pt;
-      color: var(--muted);
-    }
+      .title {
+        font-size: 22px;
+        font-weight: 800;
+        color: #4a5568;
+        margin-bottom: 8px;
+        line-height: 1.2;
+      }
 
-    .grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8mm;
-    }
+      .university {
+        font-size: 13px;
+        color: #4a5568;
+        font-weight: 600;
+        margin-bottom: 6px;
+      }
 
-    .left-column {
-      display: flex;
-      flex-direction: column;
-      gap: 8mm;
-    }
+      .authors {
+        font-size: 12px;
+        color: #2d3748;
+        margin-top: 6px;
+      }
 
-    .card {
-      background: var(--panel);
-      border: 0.6mm solid var(--line);
-      border-radius: 6mm;
-      padding: 7mm;
-      box-shadow: 0 2mm 4mm rgba(0,0,0,.04);
-    }
+      .authors strong {
+        color: #667eea;
+      }
 
-    .card h2 {
-      margin: 0;
-      font-size: 16pt;
-      color: var(--ink);
-      border-bottom: 0.6mm solid #e9eef7;
-      padding-bottom: 3mm;
-    }
+      .content {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
+        flex: 1;
+        grid-template-areas:
+          "left-top method"
+          "diagram diagram"
+          "related results"
+          "conclusion conclusion";
+        grid-template-rows: auto auto auto auto;
+      }
 
-    ul {
-      margin: 0;
-      padding-left: 5mm;
-    }
+      .left-column {
+        grid-area: left-top;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+      }
 
-    li {
-      margin: 1.5mm 0;
-      font-size: 11pt;
-      color: var(--ink);
-    }
+      .intro {
+        margin-top: auto;
+      }
 
-    .placeholder {
-      border: 0.6mm dashed #b9cbe4;
-      border-radius: 4mm;
-      min-height: 40mm;
-      display: grid;
-      place-items: center;
-      color: #6a7c94;
-      font-size: 10pt;
-      background: #f7faff;
-    }
+      .method {
+        grid-area: method;
+        height: fit-content;
+      }
 
-    /* --- Data Flow block --- */
-    .flow {
-      margin-top: 10mm;
-      border-top: 0.6mm solid #e9eef7;
-      padding-top: 6mm;
-    }
-    .flow h3 {
-      margin: 0 0 3mm;
-      font-size: 14pt;
-      color: var(--ink);
-    }
-    .flow-steps {
-      margin: 0;
-      padding-left: 0;
-      list-style: none;
-      display: grid;
-      gap: 2.5mm;
-    }
-    .flow-steps li {
-      font-size: 11pt;
-      color: var(--ink);
-      line-height: 1.55;
-      background: #f7faff;
-      border: 0.6mm solid #e3ecf7;
-      border-radius: 4mm;
-      padding: 4mm 5mm;
-    }
-    .flow-steps li b {
-      color: #1558d6;
-      font-weight: 800;
-      margin-right: 2mm;
-    }
-    .flow-note {
-      margin-top: 4mm;
-      font-size: 10.5pt;
-      color: var(--muted);
-    }
+      .diagram-section {
+        grid-area: diagram;
+      }
 
-    .footer {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 6mm;
-      padding: 6mm 8mm;
-      border: 0.6mm solid var(--line);
-      border-radius: 6mm;
-      background: var(--panel);
-      font-size: 10pt;
-      color: var(--muted);
-      box-shadow: 0 2mm 4mm rgba(0,0,0,.04);
-    }
+      .related {
+        grid-area: related;
+      }
 
-    .footer a {
-      color: #1558d6;
-      text-decoration: none;
-    }
+      .results {
+        grid-area: results;
+      }
 
-    .card.small {
-      padding: 5mm;
-    }
-    .card.small h2 {
-      font-size: 14pt;
-      padding-bottom: 2mm;
-      border-bottom: 0.6mm solid #e9eef7;
-    }
-    .card.small li {
-      font-size: 10.5pt;
-    }
-  </style>
-</head>
-<body>
-  <main class="poster">
-    <section class="title">
-      <h1>Plugin Phân tích Mã Tĩnh cho Solidity trên VS Code</h1>
-      <div class="subtitle">Giải pháp phát hiện vấn đề trong smart contracts bằng phân tích mẫu & luật kết hợp mô-đun trên VS Code.</div>
-      <div class="meta">
-        <div><strong>Nhóm:</strong> 9</div>
-        <div><strong>Thành viên:</strong> Sit Khải Đông (23520299); Nguyễn Hữu Cảnh (23520166)</div>
-        <div><strong>GVHD:</strong> …</div>
-        <div><strong>Sự kiện:</strong> … • <strong>Ngày:</strong> …</div>
-      </div>
-    </section>
+      .conclusion {
+        grid-area: conclusion;
+      }
 
-    <section class="grid">
-      <div class="left-column">
-        <article class="card" aria-label="Abstract">
-          <h2>Abstract</h2>
-          <p style="font-size:11pt; color:#1e2432; line-height:1.6; text-align:justify;">
-            <strong>Solidity-Static-Analyzer</strong> là công cụ phân tích tĩnh dành cho smart contract viết bằng Solidity, nhằm phát hiện sớm lỗ hổng bảo mật và mùi mã trong suốt vòng đời phát triển. Dựa trên nền tảng JavaScript/TypeScript, dự án hướng đến kiến trúc mô-đun có thể mở rộng theo mô hình rule/plugin: từ nạp mã nguồn, phân tích cú pháp (AST), xây dựng đồ thị điều khiển/luồng dữ liệu (CFG/DFA), đến thực thi các quy tắc kiểm tra ngữ nghĩa. Công cụ kỳ vọng cung cấp cả giao diện CLI và API, hỗ trợ xuất báo cáo ở nhiều định dạng phục vụ CI/CD (ví dụ JSON, SARIF, HTML), giúp tích hợp thuận tiện với các nền tảng quét mã và quy trình kiểm thử tự động. Trọng tâm phát hiện bao gồm các rủi ro phổ biến của hợp đồng thông minh như reentrancy, delegatecall không an toàn, selfdestruct, lỗ hổng kiểm soát truy cập, biến trạng thái không khởi tạo và khuếch tán dữ liệu nhạy cảm. Kiến trúc tách lớp (loader, parser, engine, rules, reporters) hỗ trợ cache và thực thi song song nhằm tối ưu hiệu năng trên codebase lớn, đồng thời đơn giản hóa việc bổ sung quy tắc mới và tuỳ biến theo dự án.
-          </p>
-        </article>
+      .section {
+        background: #f7fafc;
+        padding: 12px;
+        border-radius: 6px;
+        border-left: 4px solid #667eea;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+      }
 
-        <article class="card" aria-label="Introduction">
-          <h2>Introduction</h2>
-          <ul>
-            <li><strong>Ngữ cảnh:</strong> Các lỗ hổng phổ biến trong Solidity như reentrancy, overflow/underflow, <code>tx.origin</code>…</li>
-            <li><strong>Bài toán:</strong> Phát hiện sớm lỗi trong mã nguồn để giảm rủi ro bảo mật và chi phí audit.</li>
-            <li><strong>Đóng góp:</strong> Plugin quét mã trên VS Code, tự động phát hiện và gợi ý khắc phục lỗi.</li>
-          </ul>
-          <!-- <div class="placeholder" aria-hidden="true">(Hình minh họa ngữ cảnh hoặc pipeline)</div> -->
-          <img src="introduction.png" alt="Sơ đồ minh họa quy trình phân tích mã của plugin" style="width: 100%; height: auto; border-radius: 4mm; margin-top: 4mm;">
-        </article>
+      .section.abstract {
+        height: fit-content;
+        align-self: start;
+      }
 
-        <article class="card small" aria-label="Target">
-          <h2>Mục tiêu sản phẩm</h2>
-          <ul>
-            <li><strong>Cung cấp công cụ phân tích tĩnh</strong> cho smart contract Solidity để phát hiện lỗ hổng và mùi mã sớm trong SDLC.</li>
-            <li><strong>Hoạt động linh hoạt:</strong> hỗ trợ cả CLI và API, dễ tích hợp CI/CD và quy trình review.</li>
-          </ul>
-          <h3 style="font-size:12pt; margin-top:4mm; color:#1558d6;">Phạm vi phát hiện (coverage ban đầu)</h3>
-          <ul>
-            <li>Reentrancy, delegatecall không an toàn, selfdestruct, <code>tx.origin</code>, unchecked call/transfer, uninitialized state, integer overflow/underflow (tùy compiler), access control thiếu chặt chẽ.</li>
-            <li><strong>Taint/Dataflow cơ bản:</strong> theo dõi nguồn dữ liệu không tin cậy đến các <em>sink</em> nguy hiểm.</li>
-            <li><strong>Mở rộng dần:</strong> front-running/MEV risk patterns, storage collision (proxy), signature replay.</li>
-          </ul>
-        </article>
-      </div>
+      .section-title {
+        font-size: 13px;
+        font-weight: 700;
+        color: #667eea;
+        margin-bottom: 8px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
 
-      <article class="card" aria-label="Method">
-        <h2>Method</h2>
-        <ul>
-          <li>Hệ thống gồm các module: Parser, Pattern Extractor, Rule Engine, Reporter, UI.</li>
-          <li>Cấu trúc plugin tách lớp core và adapter để dễ mở rộng.</li>
-          <li>Sử dụng AST/CFG và bộ quy tắc phát hiện lỗi.</li>
-        </ul>
-        <div class="placeholder" style="display:none"></div>
+      .section-content {
+        font-size: 10.5px;
+        line-height: 1.5;
+        text-align: justify;
+        color: #2d3748;
+        overflow: auto;
+      }
 
-        <svg viewBox="0 0 1200 760" xmlns="http://www.w3.org/2000/svg" aria-label="Sơ đồ kiến trúc tổng thể – Solidity Static Analyzer" role="img" style="width:100%;height:auto;border:0.5mm solid #e3ecf7;border-radius:6mm;background:#ffffff">
-          <defs>
-            <style>
-              .blk{fill:#f7faff;stroke:#b9cbe4;stroke-width:2.5}
-              .title{font:700 20px Inter, Arial; fill:#1e2432}
-              .txt{font:600 16px Inter, Arial; fill:#1e2432}
-              .sub{font:500 14px Inter, Arial; fill:#5c667a}
-              .accent{fill:#e8f1ff;stroke:#5a8dee}
-              .accent2{fill:#e8fff3;stroke:#27ae60}
-              .accent3{fill:#fff7e6;stroke:#f39c12}
-              .cap{font:600 14px Inter, Arial; fill:#1954c9}
-              .link{stroke:#7ea6ff;stroke-width:2.5;marker-end:url(#arrow)}
-              .link2{stroke:#9ad9c7;stroke-width:2;marker-end:url(#arrow)}
-            </style>
-            <marker id="arrow" markerWidth="10" markerHeight="10" refX="10" refY="3" orient="auto" markerUnits="strokeWidth">
-              <path d="M0,0 L10,3 L0,6 Z" fill="#7ea6ff" />
-            </marker>
-          </defs>
+      .abstract {
+        grid-area: abstract;
+        background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+        border-left-color: #667eea;
+      }
 
-          <text x="24" y="36" class="title">Sơ đồ kiến trúc tổng thể – Plugin Phân tích Mã Tĩnh cho Solidity (VS Code)</text>
+      .intro {
+        grid-area: intro;
+        height: fit-content;
+      }
 
-          <rect x="24" y="60" width="330" height="90" rx="12" class="accent"/>
-          <text x="40" y="92" class="txt">VS Code Extension</text>
-          <text x="40" y="118" class="sub">Activation • Commands • Status bar</text>
+      .method {
+        grid-area: method;
+        background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+      }
 
-          <rect x="24" y="170" width="330" height="110" rx="12" class="blk"/>
-          <text x="40" y="205" class="txt">Workspace Scanner / File Watcher</text>
-          <text x="40" y="232" class="sub">Lắng nghe thay đổi, gom file .sol</text>
+      .method-content {
+        display: flex;
+        flex-direction: column;
+      }
 
-          <rect x="24" y="290" width="330" height="100" rx="12" class="blk"/>
-          <text x="40" y="323" class="txt">Source Collector</text>
-          <text x="40" y="350" class="sub">Nạp dự án, include/ignore</text>
+      .diagram-section {
+        grid-area: diagram;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 0;
+        overflow: visible;
+        max-height: none;
+        position: static;
+      }
 
-          <rect x="382" y="120" width="350" height="110" rx="12" class="blk"/>
-          <text x="398" y="155" class="txt">Parser</text>
-          <text x="398" y="182" class="sub">solc / solidity-parser-antlr</text>
+      .system-diagram {
+        width: 100%;
+        height: auto;
+        max-width: 100%;
+        max-height: 345px;
+        object-fit: contain;
+        border-radius: 4px;
+        display: block;
+        position: relative;
+        z-index: 0;
+        margin-bottom: -60px;
+      }
 
-          <rect x="382" y="240" width="350" height="100" rx="12" class="blk"/>
-          <text x="398" y="273" class="txt">AST Builder & Normalizer</text>
-          <text x="398" y="300" class="sub">Trích thông tin cú pháp</text>
+      .subsection-title {
+        font-size: 11px;
+        font-weight: 700;
+        color: #4a5568;
+        margin-top: 8px;
+        margin-bottom: 5px;
+      }
 
-          <rect x="382" y="350" width="350" height="90" rx="12" class="blk"/>
-          <text x="398" y="383" class="txt">CFG/DFG (tùy chọn)</text>
-          <text x="398" y="410" class="sub">Luồng điều khiển & dữ liệu</text>
+      .related {
+        grid-area: related;
+        background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+        border-left-color: #667eea;
+      }
 
-          <rect x="382" y="450" width="350" height="150" rx="12" class="accent2"/>
-          <text x="398" y="485" class="txt">Rule Engine</text>
-          <text x="398" y="512" class="sub">Pattern match • Severity map • Dedup</text>
+      .results {
+        grid-area: results;
+        background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+        border-left-color: #667eea;
+      }
 
-          <rect x="760" y="200" width="350" height="90" rx="12" class="blk"/>
-          <text x="776" y="233" class="txt">Results Aggregator</text>
-          <text x="776" y="260" class="sub">Hợp nhất cảnh báo / vị trí</text>
+      .conclusion {
+        grid-area: conclusion;
+        background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+        border-left-color: #667eea;
+      }
 
-          <rect x="760" y="300" width="350" height="130" rx="12" class="accent3"/>
-          <text x="776" y="335" class="txt">Reporter</text>
-          <text x="776" y="362" class="sub">VS Code Diagnostics • JSON/SARIF</text>
+      .highlight {
+        background: #667eea;
+        color: white;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-weight: 400;
+        font-size: 10px;
+      }
 
-          <rect x="760" y="440" width="350" height="110" rx="12" class="blk"/>
-          <text x="776" y="473" class="txt">VS Code UI</text>
-          <text x="776" y="500" class="sub">Problems panel • Underlines • Quick fixes</text>
+      ul {
+        margin-left: 15px;
+        margin-top: 5px;
+      }
 
-          <rect x="24" y="410" width="330" height="120" rx="12" class="blk"/>
-          <text x="40" y="445" class="txt">Config</text>
-          <text x="40" y="472" class="sub">Ruleset (JSON/YAML) • Project settings</text>
+      li {
+        margin-bottom: 3px;
+      }
 
-          <rect x="760" y="560" width="350" height="80" rx="12" class="blk"/>
-          <text x="776" y="592" class="txt">CI/CD Hook (tuỳ chọn)</text>
-
-          <rect x="382" y="620" width="350" height="80" rx="12" class="blk"/>
-          <text x="398" y="652" class="txt">Testing &amp; Benchmarks</text>
-
-          <line x1="354" y1="110" x2="382" y2="140" class="link"/>
-          <line x1="354" y1="225" x2="382" y2="175" class="link"/>
-          <line x1="354" y1="340" x2="382" y2="290" class="link"/>
-          <line x1="382" y1="200" x2="382" y2="240" class="link"/>
-          <line x1="557" y1="340" x2="557" y2="350" class="link"/>
-          <line x1="557" y1="440" x2="557" y2="450" class="link"/>
-          <line x1="732" y1="520" x2="760" y2="245" class="link"/>
-          <line x1="935" y1="390" x2="935" y2="440" class="link"/>
-          <line x1="354" y1="470" x2="382" y2="525" class="link2"/>
-          <line x1="935" y1="430" x2="935" y2="560" class="link2"/>
-        </svg>
-
-        <div class="flow">
-          <h3>Luồng dữ liệu</h3>
-          <ul class="flow-steps">
-            <li><b>1 – Source Collector → Parser:</b> Code Solidity từ Workspace Scanner/File Watcher được thu thập và gửi đến Parser để sinh AST.</li>
-            <li><b>2 – AST Builder & Normalizer:</b> Chuẩn hóa cây cú pháp, tách biện và định nghĩa.</li>
-            <li><b>3 – CFG/DFG (tuỳ chọn):</b> Phân tích luồng điều khiển và dữ liệu để xác định mối quan hệ giữa các biến.</li>
-            <li><b>4 – Rule Engine:</b> So khớp mẫu (pattern match) và áp dụng bản đồ Severity để đánh giá mức độ nguy hiểm.</li>
-            <li><b>5 – Results Aggregator:</b> Hợp nhất các kết quả cảnh báo từ nhiều luồng.</li>
-            <li><b>6 – Reporter:</b> Xuất kết quả dưới dạng <code>VS Code Diagnostics</code> hoặc <code>JSON/SARIF</code> để đồng bộ CI/CD.</li>
-            <li><b>7 – VS Code UI:</b> Hiển thị trên Problems panel, highlight, underline, quick fixes.</li>
-          </ul>
-          <div class="flow-note">Luồng này mô tả toàn bộ pipeline xử lý từ Parser đến Reporter để plugin hoàn thiện và cung cấp kết quả phân tích trong VS Code.</div>
+      @media print {
+        body {
+          print-color-adjust: exact;
+          -webkit-print-color-adjust: exact;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="poster">
+      <div class="header">
+        <div class="university">
+          Trường Đại Học Công Nghệ Thông Tin, ĐHQG-HCM
         </div>
-      </article>
-    </section>
+        <h1 class="title">
+          Plugin Phân Tích Mã Tĩnh cho Solidity trên VS Code
+        </h1>
+        <div class="authors">
+          <strong>Tác giả:</strong> Nguyễn Hữu Cảnh, Sit Khải Đông<br />
+          <strong>Email:</strong> 23520166@gm.uit.edu.vn,
+          23520299@gm.uit.edu.vn<br />
+          <strong>Giảng viên hướng dẫn:</strong> Trần Tuấn Dũng
+        </div>
+      </div>
 
-    <section class="grid">
-      <article class="card">
-        <h2>Experiment Analysis</h2>
-        <ul>
-          <li>Thử nghiệm trên nhiều môi trường và dự án khác nhau.</li>
-          <li>Đo độ chính xác, thời gian phát hiện và tỉ lệ lỗi sai (false positives).</li>
-        </ul>
-        <figure style="margin:0">
-  <svg viewBox="0 0 1100 430" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Biểu đồ Precision/Recall/F1 theo tập dữ liệu (đã căn lại vị trí)">
-    <defs>
-      <style>
-        .axis{stroke:#b9cbe4;stroke-width:2}
-        .label{font:600 14px Inter, Arial; fill:#5c667a}
-        .title{font:700 18px Inter, Arial; fill:#1e2432}
-        .barP{fill:#5a8dee}
-        .barR{fill:#27ae60}
-        .barF{fill:#f39c12}
-        .tick{font:600 12px Inter, Arial; fill:#6a7c94}
-        .legend{font:600 13px Inter, Arial; fill:#1e2432}
-      </style>
-    </defs>
+      <div class="content">
+        <div class="left-column">
+          <div class="section abstract">
+            <div class="section-title">Tóm Tắt</div>
+            <div class="section-content">
+              <strong>Solidity Static Analyzer</strong> - Extension phân tích mã
+              tĩnh thời gian thực cho Visual Studio Code, phát hiện lỗi bảo mật
+              và cú pháp trong smart contracts Solidity ngay khi lập trình viên
+              gõ code.
+            </div>
+          </div>
 
-    <!-- Title -->
-    <text x="24" y="28" class="title">Độ chính xác (Precision), Khả năng phát hiện (Recall) và F1-score</text>
+          <div class="section intro">
+            <div class="section-title">Giới Thiệu</div>
+            <div class="section-content">
+              Smart contracts xử lý tài sản giá trị cao trên blockchain với tính
+              bất biến, khiến lỗ hổng bảo mật có thể gây thiệt hại nghiêm trọng.
+              Các công cụ phân tích tĩnh hiện tại thường phức tạp, không tích
+              hợp tốt vào quy trình phát triển, dẫn đến nhiều lỗ hổng bị bỏ sót.
+              <br />
+              <strong>Solidity Static Analyzer</strong> là extension VS Code
+              cung cấp phân tích tĩnh thời gian thực cho smart contracts
+              Solidity. Tool phát hiện các lỗ hổng bảo mật phổ biến (tx.origin,
+              selfdestruct, delegatecall, reentrancy) và lỗi cú pháp cơ bản ngay
+              khi lập trình viên gõ code.
+              <br />
+              Extension tích hợp các rule kiểm tra bảo mật quan trọng và cú pháp
+              cơ bản, cung cấp phản hồi tức thì khi thao tác trên file .sol để
+              ngăn chặn lỗi trước khi deploy lên blockchain.
+            </div>
+          </div>
+        </div>
 
-    <!-- Chart frame -->
-    <rect x="24" y="40" width="960" height="300" fill="#ffffff" stroke="#e3ecf7" stroke-width="2.5" rx="6"/>
+        <div class="section method">
+          <div class="section-title">Phương Pháp Nghiên Cứu</div>
+          <div class="method-content">
+            <div class="section-content">
+              <div class="subsection-title">Phương pháp tiếp cận:</div>
+              Hệ thống được thiết kế theo kiến trúc layered architecture với 5
+              layer chính: VS Code Integration, Core Analysis Engine, AST/CFG
+              Processing, Enhanced Rules Engine, và Advanced Diagnostic Display.
+              Phương pháp phân tích chuyển từ text-based sang structure-aware
+              analysis thông qua AST parser và Control Flow Graph builder, cho
+              phép phát hiện lỗ hổng phức tạp hơn như reentrancy attacks,
+              unreachable code, và cross-file dependencies.
 
-    <!-- Y grid (0..100) -->
-    <g>
-      <line x1="24" y1="340" x2="984" y2="340" class="axis"/>
-      <line x1="24" y1="290" x2="984" y2="290" class="axis" opacity="0.6"/>
-      <line x1="24" y1="240" x2="984" y2="240" class="axis" opacity="0.4"/>
-      <line x1="24" y1="190" x2="984" y2="190" class="axis" opacity="0.3"/>
-      <line x1="24" y1="140" x2="984" y2="140" class="axis" opacity="0.2"/>
-      <line x1="24" y1="90"  x2="984" y2="90"  class="axis" opacity="0.15"/>
-    </g>
+              <div class="subsection-title">Quy trình thực hiện:</div>
+              Quy trình phân tích được chia thành 3 phase chính: (1)
+              <strong>Parsing & Structure Building</strong> - tokenize source
+              code, build AST theo Solidity grammar, tạo symbol table và CFG;
+              (2) <strong>Multi-dimensional Analysis</strong> - áp dụng
+              AST-based rules (syntax, type checking), CFG-based rules (flow
+              analysis, reentrancy detection), và cross-file analysis; (3)
+              <strong>Result Processing & Display</strong> - tổng hợp findings,
+              phân loại severity, và hiển thị với AST-aware highlighting. Hệ
+              thống sử dụng incremental parsing và parallel processing để đảm
+              bảo real-time performance, kết hợp với caching mechanism để tối ưu
+              memory usage.
+            </div>
+          </div>
+        </div>
 
-    <!-- Y labels -->
-    <g class="tick">
-      <text x="990" y="344">0</text>
-      <text x="990" y="294">20</text>
-      <text x="990" y="244">40</text>
-      <text x="990" y="194">60</text>
-      <text x="990" y="144">80</text>
-      <text x="986" y="94">100</text>
-    </g>
+        <div class="diagram-section">
+          <img
+            src="system.png"
+            alt="Kiến trúc hệ thống"
+            class="system-diagram"
+          />
+        </div>
 
-    <!-- GROUP CENTERS evenly spaced inside frame (24..984, width 960): 120, 312, 504, 696, 888 -->
-    <!-- Each group has bars width 22; offsets: P=-34, R=-11, F=+12 -->
+        <div class="section related">
+          <div class="section-title">Nghiên Cứu Liên Quan</div>
+          <div class="section-content">
+            Trong khi các extension hiện tại tập trung vào lỗi cú pháp,
+            extension này được tích hợp cảnh báo bảo mật (tx.origin,
+            delegatecall, selfdestruct,...) theo thời gian thực trong trình soạn
+            thảo.
+          </div>
+        </div>
 
-    <!-- Dataset 1: SmallContracts: P88.89 R96.00 F92.31 -->
-    <g>
-      <text x="120" y="372" class="label" text-anchor="middle">Small</text>
-      <rect class="barP" x="86"  y="73.3" width="22" height="266.7"/>
-      <rect class="barR" x="109" y="52.0" width="22" height="288.0"/>
-      <rect class="barF" x="132" y="63.1" width="22" height="276.9"/>
-    </g>
+        <div class="section results">
+          <div class="section-title">Kết Quả Thực Nghiệm</div>
+          <div class="section-content">
+            Công cụ được kiểm thử trên nhiều mẫu smart contract chứa lỗi cú pháp
+            và bảo mật phổ biến. Kết quả cho thấy khả năng phát hiện chính xác
+            và phản hồi tức thì, hoạt động ổn định trong VS Code mà không gây
+            trễ đáng kể. Dù chưa có so sánh định lượng, kết quả bước đầu chứng
+            minh tính khả thi và hiệu quả của giải pháp.
+          </div>
+        </div>
 
-    <!-- Dataset 2: DeFiSamples: P85.71 R91.30 F88.40 -->
-    <g>
-      <text x="312" y="372" class="label" text-anchor="middle">DeFi</text>
-      <rect class="barP" x="278" y="82.9" width="22" height="257.1"/>
-      <rect class="barR" x="301" y="66.1" width="22" height="273.9"/>
-      <rect class="barF" x="324" y="74.8" width="22" height="265.2"/>
-    </g>
-
-    <!-- Dataset 3: ERC20Variants: P88.76 R95.00 F91.70 -->
-    <g>
-      <text x="504" y="372" class="label" text-anchor="middle">ERC20</text>
-      <rect class="barP" x="470" y="73.7" width="22" height="266.3"/>
-      <rect class="barR" x="493" y="55.0" width="22" height="285.0"/>
-      <rect class="barF" x="516" y="64.9" width="22" height="275.1"/>
-    </g>
-
-    <!-- Dataset 4: VulnerableBench: P80.00 R92.31 F85.71 -->
-    <g>
-      <text x="696" y="372" class="label" text-anchor="middle">VulnBench</text>
-      <rect class="barP" x="662" y="100.0" width="22" height="240.0"/>
-      <rect class="barR" x="685" y="63.1" width="22" height="276.9"/>
-      <rect class="barF" x="708" y="82.9" width="22" height="257.1"/>
-    </g>
-
-    <!-- Dataset 5: RandomRepoSamples: P76.47 R89.66 F82.54 -->
-    <g>
-      <text x="888" y="372" class="label" text-anchor="middle">Random</text>
-      <rect class="barP" x="854" y="110.6" width="22" height="229.4"/>
-      <rect class="barR" x="877" y="71.0" width="22" height="269.0"/>
-      <rect class="barF" x="900" y="92.4" width="22" height="247.6"/>
-    </g>
-
-    <!-- Legend -->
-    <g>
-      <rect x="24" y="384" width="14" height="14" class="barP"/>
-      <text x="44" y="396" class="legend">Precision</text>
-      <rect x="124" y="384" width="14" height="14" class="barR"/>
-      <text x="144" y="396" class="legend">Recall</text>
-      <rect x="204" y="384" width="14" height="14" class="barF"/>
-      <text x="224" y="396" class="legend">F1</text>
-    </g>
-  </svg>
-      </article>
-
-      <article class="card">
-        <h2>Kết quả đạt được, Hướng phát triển và Giới hạn</h2>
-        <ul>
-        <li><strong>Kết quả đạt được:</strong> Plugin hoạt động ổn định trong môi trường VS Code, phát hiện chính xác nhiều loại lỗ hổng phổ biến trong Solidity như reentrancy, tx.origin và selfdestruct. Hiệu suất thử nghiệm đạt độ chính xác trung bình trên 85% và có khả năng mở rộng cho các dự án lớn.</li>
-        <li><strong>Giới hạn:</strong> Chỉ kiểm tra theo heuristic cơ bản, nên dùng thêm các công cụ chuyên sâu trong CI để phân tích bảo mật toàn diện..</li>
-        <li><strong>Hướng phát triển:</strong> Bổ sung thêm các rule nâng cao, tích hợp AI để tự động gợi ý cách khắc phục lỗi, hỗ trợ thêm ngôn ngữ lập trình smart contract khác (như Vyper hoặc Move), và phát triển dashboard trực quan theo dõi kết quả quét mã trong CI/CD.</li>
-        </ul>
-      </article>
-
-    <!-- <footer class="footer">
-      <div>📚 Nguồn: <a href="https://github.com/BlankBire/Solidity-Static-Analyzer">github.com/BlankBire/Solidity-Static-Analyzer</a></div>
-    </footer> -->
-  </main>
-</body>
+        <div class="section conclusion">
+          <div class="section-title">Kết Luận & Hướng Phát Triển</div>
+          <div class="section-content">
+            <strong>Solidity Static Analyzer</strong> đã chứng minh tính khả thi
+            của phân tích mã tĩnh thời gian thực trong môi trường phát triển VS
+            Code, giúp phát hiện sớm các lỗi cú pháp và bảo mật phổ biến trong
+            smart contracts. Công cụ hoạt động ổn định, phản hồi nhanh và hỗ trợ
+            lập trình viên giảm thiểu rủi ro bảo mật ngay trong quá trình viết
+            mã.
+            <br />
+            Trong tương lai, nhóm phát triển hướng đến việc mở rộng bộ quy tắc
+            để bao phủ nhiều mẫu tấn công phức tạp hơn, bổ sung đánh giá định
+            lượng và so sánh với các công cụ khác, cũng như tích hợp machine
+            learning nhằm tự động phát hiện các mẫu lỗi mới trong smart
+            contracts.
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
 </html>
