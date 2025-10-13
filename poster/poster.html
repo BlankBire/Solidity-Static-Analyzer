@@ -82,7 +82,7 @@
           "diagram diagram"
           "related results"
           "conclusion conclusion";
-        grid-template-rows: auto auto auto auto;
+        grid-template-rows: auto 290px auto auto;
       }
 
       .left-column {
@@ -176,22 +176,22 @@
         justify-content: center;
         align-items: center;
         padding: 0;
-        overflow: visible;
-        max-height: none;
+        overflow: hidden;
+        height: 100%;
         position: static;
       }
 
       .system-diagram {
         width: 100%;
-        height: auto;
+        height: 100%;
         max-width: 100%;
-        max-height: 345px;
+        max-height: 100%;
         object-fit: contain;
         border-radius: 4px;
         display: block;
         position: relative;
         z-index: 0;
-        margin-bottom: -60px;
+        margin-bottom: 0;
       }
 
       .subsection-title {
@@ -270,8 +270,10 @@
             <div class="section-content">
               <strong>Solidity Static Analyzer</strong> - Extension phân tích mã
               tĩnh thời gian thực cho Visual Studio Code, phát hiện lỗi bảo mật
-              và cú pháp trong smart contracts Solidity ngay khi lập trình viên
-              gõ code.
+              và cú pháp trong smart contracts Solidity, triển khai dưới dạng bộ
+              quy tắc chạy trực tiếp trong IDE giúp lập trình viên nhận phản hồi
+              ngay khi gõ code, giảm thiểu lỗi trước khi đưa vào pipeline kiểm
+              thử.
             </div>
           </div>
 
@@ -289,9 +291,9 @@
               selfdestruct, delegatecall, reentrancy) và lỗi cú pháp cơ bản ngay
               khi lập trình viên gõ code.
               <br />
-              Extension tích hợp các rule kiểm tra bảo mật quan trọng và cú pháp
-              cơ bản, cung cấp phản hồi tức thì khi thao tác trên file .sol để
-              ngăn chặn lỗi trước khi deploy lên blockchain.
+              Công trình trình bày kiến trúc modular, kết quả thử nghiệm trên
+              mẫu hợp đồng và phương hướng cải thiện để tăng độ chính xác và
+              giảm false positives.
             </div>
           </div>
         </div>
@@ -327,7 +329,7 @@
 
         <div class="diagram-section">
           <img
-            src="system.png"
+            src="architecture.png"
             alt="Kiến trúc hệ thống"
             class="system-diagram"
           />
@@ -336,10 +338,11 @@
         <div class="section related">
           <div class="section-title">Nghiên Cứu Liên Quan</div>
           <div class="section-content">
-            Trong khi các extension hiện tại tập trung vào lỗi cú pháp,
-            extension này được tích hợp cảnh báo bảo mật (tx.origin,
-            delegatecall, selfdestruct,...) theo thời gian thực trong trình soạn
-            thảo.
+            Trong khi các extension hiện tại tập trung vào các loại lỗi cú pháp,
+            điểm mới của extension này chính là được tích hợp cảnh báo bảo mật
+            (tx.origin, delegatecall, selfdestruct,...) theo thời gian thực
+            trong trình soạn thảo. Từ đó hạn chế tối đa những lỗ hổng bị bỏ sót
+            trong quá trình viết mã.
           </div>
         </div>
 
