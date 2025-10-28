@@ -124,12 +124,25 @@ function runAnalysis(document: vscode.TextDocument) {
   // Gọi bộ phân tích cốt lõi với nội dung tài liệu
   const text = document.getText();
   const naming = {
-    functionPattern: config.get<string>("naming.functionPattern", "^[A-Za-z_][A-Za-z0-9_]*$")!,
-    variablePattern: config.get<string>("naming.variablePattern", "^[A-Za-z_][A-Za-z0-9_]*$")!,
-    constantPattern: config.get<string>("naming.constantPattern", "^[A-Za-z_][A-Za-z0-9_]*$")!,
-    contractPattern: config.get<string>("naming.contractPattern", "^[A-Za-z_][A-Za-z0-9_]*$")!,
+    functionPattern: config.get<string>(
+      "naming.functionPattern",
+      "^[A-Za-z_][A-Za-z0-9_]*$"
+    )!,
+    variablePattern: config.get<string>(
+      "naming.variablePattern",
+      "^[A-Za-z_][A-Za-z0-9_]*$"
+    )!,
+    constantPattern: config.get<string>(
+      "naming.constantPattern",
+      "^[A-Za-z_][A-Za-z0-9_]*$"
+    )!,
+    contractPattern: config.get<string>(
+      "naming.contractPattern",
+      "^[A-Za-z_][A-Za-z0-9_]*$"
+    )!,
   };
-  const findings = analyzeText(text, rules, maxProblems, naming);
+  const useAST = config.get<boolean>("useASTAnalyzer", true);
+  const findings = analyzeText(text, rules, maxProblems, naming, useAST);
   // Chuyển các kết quả (findings) thành Diagnostic để VS Code hiển thị
   const diagnostics: vscode.Diagnostic[] = findings.map((f) => {
     const range = new vscode.Range(

@@ -147,7 +147,8 @@ function runAnalysis(document) {
         constantPattern: config.get("naming.constantPattern", "^[A-Za-z_][A-Za-z0-9_]*$"),
         contractPattern: config.get("naming.contractPattern", "^[A-Za-z_][A-Za-z0-9_]*$"),
     };
-    const findings = (0, solidityAnalyzer_1.analyzeText)(text, rules, maxProblems, naming);
+    const useAST = config.get("useASTAnalyzer", true);
+    const findings = (0, solidityAnalyzer_1.analyzeText)(text, rules, maxProblems, naming, useAST);
     // Chuyển các kết quả (findings) thành Diagnostic để VS Code hiển thị
     const diagnostics = findings.map((f) => {
         const range = new vscode.Range(new vscode.Position(f.range.start.line, f.range.start.character), new vscode.Position(f.range.end.line, f.range.end.character));

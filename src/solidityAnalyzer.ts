@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 
 /**
  * Bộ phân tích mã tĩnh Solidity
- * 
+ *
  * Bộ phân tích mã tĩnh cho Solidity smart contracts.
  * Phát hiện các vấn đề bảo mật và lỗi cú pháp phổ biến.
  */
@@ -64,13 +64,16 @@ export function analyzeText(
   content: string,
   rules: AnalyzerRules,
   maxProblems: number,
-  naming?: NamingConfig
+  naming?: NamingConfig,
+  useAST?: boolean
 ): Finding[] {
   const findings: Finding[] = [];
   const lines = content.split(/\r?\n/);
   const reportedKeys = new Set<string>();
   // Theo dõi các identifier bị thiếu kiểu để cảnh báo khi được sử dụng ở các dòng sau
   const missingTypeIdentifiers = new Set<string>();
+  // Theo dõi các identifier đã được khai báo (có type)
+  const declaredIdentifiers = new Set<string>();
 
   // Hàm helper để thêm finding vào danh sách
   const pushFinding = (
@@ -99,6 +102,67 @@ export function analyzeText(
       },
     });
   };
+
+  // Nếu user bật useASTAnalyzer, thử parse bằng tree-sitter để có phân tích chính xác hơn
+  if (useAST) {
+    try {
+      // Load tree-sitter dynamically so extension vẫn hoạt động khi package không được cài
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const Parser: any = require("tree-sitter");
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const SolidityLang: any = require("tree-sitter-solidity");
+      const parser = new Parser();
+      parser.setLanguage(SolidityLang);
+      const tree = parser.parse(content);
+
+      // Helper: tìm return_statement trong subtree
+      const hasReturnInNode = (node: any): boolean => {
+        if (!node) return false;
+        if (node.type === "return_statement") return true;
+        const kids = node.namedChildren || node.children || [];
+        for (const c of kids) {
+          if (hasReturnInNode(c)) return true;
+        }
+        return false;
+      };
+
+      // Duyệt AST để detect function definitions với 'returns' nhưng không có 'return'
+      const walk = (node: any) => {
+        if (!node) return;
+        // Node type names depend on grammar; tree-sitter-solidity uses 'function_definition'
+        if (
+          node.type === "function_definition" ||
+          node.type === "function_declaration"
+        ) {
+          const nodeText = content.slice(node.startIndex, node.endIndex);
+          if (/returns\s*\(/i.test(nodeText)) {
+            if (!hasReturnInNode(node)) {
+              const pos = node.startPosition || { row: 0, column: 0 };
+              pushFinding(
+                pos.row,
+                pos.column,
+                pos.column + 1,
+                "Missing return statement in function with return type.",
+                "MISSING_RETURN",
+                vscode.DiagnosticSeverity.Error
+              );
+            }
+          }
+        }
+
+        // Có thể mở rộng ở đây để làm các checks khác chính xác hơn (naming, payable, etc.)
+
+        const kids = node.namedChildren || node.children || [];
+        for (const c of kids) {
+          walk(c);
+        }
+      };
+
+      walk(tree.rootNode);
+    } catch (err) {
+      // Nếu load tree-sitter thất bại, fallback về heuristic regex-based analyzer (phần tiếp theo)
+    }
+  }
 
   // =============================================================================
   // PHÂN TÍCH CÚ PHÁP - KIỂM TRA DẤU NGOẶC NHỌN (Phương pháp Stack-based)
@@ -246,9 +310,9 @@ export function analyzeText(
           i,
           idx,
           idx +
-          (match[0].toLowerCase().includes("call.value")
-            ? "call.value".length
-            : "call{value:".length),
+            (match[0].toLowerCase().includes("call.value")
+              ? "call.value".length
+              : "call{value:".length),
           "Low-level call with value can introduce reentrancy. Use Checks-Effects-Interactions and consider .transfer/.send limitations.",
           "LOW_LEVEL_CALL_VALUE",
           vscode.DiagnosticSeverity.Warning
@@ -271,7 +335,8 @@ export function analyzeText(
 
       // 5.1 Phát hiện khai báo biến rộng rãi (hỗ trợ modifiers) không có dấu chấm phẩy cuối
       // Ví dụ: `uint public number` hoặc `address owner` hoặc `mapping(address => uint) balances`
-      const typeKeywordPattern = /^(?:uint\d*|int\d*|uint|int|address|bool|string|bytes\d*|bytes|mapping\s*\()/i;
+      const typeKeywordPattern =
+        /^(?:uint\d*|int\d*|uint|int|address|bool|string|bytes\d*|bytes|mapping\s*\()/i;
       const modifierKeywords = new Set([
         "public",
         "private",
@@ -297,7 +362,10 @@ export function analyzeText(
         !lineForDeclCheck.endsWith("}")
       ) {
         // Tránh false positives cho danh sách tham số bằng cách bỏ qua các dòng chứa '(' trừ khi là mapping(
-        if (!lineForDeclCheck.includes("(") || /\bmapping\s*\(/i.test(lineForDeclCheck)) {
+        if (
+          !lineForDeclCheck.includes("(") ||
+          /\bmapping\s*\(/i.test(lineForDeclCheck)
+        ) {
           const tokens = lineForDeclCheck
             .replace(/\b(mapping\s*\([^)]*\))/gi, "mapping")
             .split(/\s+/)
@@ -360,7 +428,11 @@ export function analyzeText(
 
       // 5.3 Câu lệnh nhiều dòng kết thúc bằng ')' mà không có ';'
       // Ví dụ: assignment hoặc call được chia thành nhiều dòng, dòng cuối kết thúc bằng ')'
-      if (stripInlineComments(trimmedLine).endsWith(")") && !stripInlineComments(trimmedLine).endsWith(";") && !isCommentOrBlank(trimmedLine)) {
+      if (
+        stripInlineComments(trimmedLine).endsWith(")") &&
+        !stripInlineComments(trimmedLine).endsWith(";") &&
+        !isCommentOrBlank(trimmedLine)
+      ) {
         // Nhìn lại tối đa 5 dòng để tìm starter cần dấu chấm phẩy
         const lookbackLimit = Math.max(0, i - 5);
         let foundStarter = false;
@@ -374,7 +446,8 @@ export function analyzeText(
             continue; // Bỏ qua dòng trống
           }
           // Nếu dòng tiếp theo bắt đầu một câu lệnh mới hoặc là dấu ngoặc nhọn đóng, đây là dòng cuối
-          if (nextLine.startsWith("require") ||
+          if (
+            nextLine.startsWith("require") ||
             nextLine.startsWith("emit") ||
             nextLine.startsWith("return") ||
             nextLine.startsWith("}") ||
@@ -383,7 +456,8 @@ export function analyzeText(
             nextLine.startsWith("modifier") ||
             nextLine.startsWith("event") ||
             nextLine.startsWith("struct") ||
-            nextLine.startsWith("enum")) {
+            nextLine.startsWith("enum")
+          ) {
             break;
           }
           // Nếu dòng tiếp theo là một phần của cùng một câu lệnh (không bắt đầu với từ khóa câu lệnh),
@@ -403,7 +477,11 @@ export function analyzeText(
             continue;
           }
           // Nếu gặp dòng đã kết thúc bằng ';' hoặc bắt đầu/kết thúc block, dừng lại
-          if (prevNoComment.endsWith(";") || prevNoComment.endsWith("{") || prevNoComment.endsWith("}")) {
+          if (
+            prevNoComment.endsWith(";") ||
+            prevNoComment.endsWith("{") ||
+            prevNoComment.endsWith("}")
+          ) {
             break;
           }
 
@@ -416,7 +494,9 @@ export function analyzeText(
             /^\s*\w+\s*\(/i, // Function calls
           ];
 
-          const hasPattern = needsSemicolonPatterns.some(pattern => pattern.test(prevNoComment));
+          const hasPattern = needsSemicolonPatterns.some((pattern) =>
+            pattern.test(prevNoComment)
+          );
           if (hasPattern) {
             foundStarter = true;
             break;
@@ -438,14 +518,25 @@ export function analyzeText(
       // 5.4 Identifier đơn lẻ ở cuối dòng mà không có dấu chấm phẩy (như "logic" trong ví dụ của user)
       // Điều này bắt các trường hợp một identifier đơn lẻ bị treo ở cuối dòng
       const singleIdentifierPattern = /^\s*[A-Za-z_][A-Za-z0-9_]*\s*$/;
-      if (singleIdentifierPattern.test(stripInlineComments(trimmedLine)) && !isCommentOrBlank(trimmedLine)) {
+      if (
+        singleIdentifierPattern.test(stripInlineComments(trimmedLine)) &&
+        !isCommentOrBlank(trimmedLine)
+      ) {
         // Đảm bảo nó không phải là function declaration, modifier, hoặc các câu lệnh single-word hợp lệ khác
-        const isFunctionDeclaration = /^\s*(function|modifier|event|struct|enum|contract|interface|library)\b/i.test(trimmedLine);
+        const isFunctionDeclaration =
+          /^\s*(function|modifier|event|struct|enum|contract|interface|library)\b/i.test(
+            trimmedLine
+          );
         const isImportStatement = /^\s*(import|pragma)\b/i.test(trimmedLine);
         const isUsingStatement = /^\s*using\b/i.test(trimmedLine);
         const isConstructor = /^\s*constructor\b/i.test(trimmedLine);
 
-        if (!isFunctionDeclaration && !isImportStatement && !isUsingStatement && !isConstructor) {
+        if (
+          !isFunctionDeclaration &&
+          !isImportStatement &&
+          !isUsingStatement &&
+          !isConstructor
+        ) {
           const idx = getLastCodeCharIndex(line);
           pushFinding(
             i,
@@ -475,7 +566,7 @@ export function analyzeText(
         !trimmedLine.startsWith("//") &&
         !trimmedLine.startsWith("/*") &&
         !line.includes("=") && // Không phải assignment
-        !line.includes(":")    // Không phải mapping
+        !line.includes(":") // Không phải mapping
       ) {
         const idx = line.length - 1;
         pushFinding(
@@ -488,7 +579,6 @@ export function analyzeText(
         );
       }
     }
-
 
     // 7. MISSING_RETURN - Kiểm tra thiếu return statement
     if (rules.missingReturn) {
@@ -535,6 +625,64 @@ export function analyzeText(
     // 9. MISSING_DATA_TYPE - Kiểm tra khai báo biến thiếu kiểu dữ liệu
     if (rules.missingDataType) {
       const noComment = stripInlineComments(line);
+      // Nếu dòng chứa khai báo với kiểu (ví dụ: "address public owner;"), nhớ tên biến
+      // để tránh báo false-positive khi sau đó chỉ gán giá trị cho biến đã khai báo.
+      try {
+        const typeKeywordPattern =
+          /^(?:.*\b(?:uint\d*|int\d*|uint|int|address|bool|string|bytes\d*|bytes|mapping)\b)/i;
+        if (
+          !/\bfunction\b/i.test(noComment) &&
+          typeKeywordPattern.test(noComment)
+        ) {
+          // Tokenize và lấy các identifier sau từ khóa kiểu, bỏ các modifiers
+          const normalized = noComment.replace(
+            /\b(mapping\s*\([^)]*\))/gi,
+            "mapping"
+          );
+          const tokens = normalized.split(/\s+/).filter(Boolean);
+          const modifierKeywords = new Set([
+            "public",
+            "private",
+            "internal",
+            "external",
+            "view",
+            "pure",
+            "payable",
+            "constant",
+            "immutable",
+            "memory",
+            "storage",
+            "calldata",
+          ]);
+          // Tìm token đầu tiên không phải modifier và không phải kiểu
+          let seenType = false;
+          for (let t = 0; t < tokens.length; t += 1) {
+            const tok = tokens[t].replace(/[,;{}()]$/g, "");
+            if (!seenType) {
+              if (
+                /^(?:uint\d*|int\d*|uint|int|address|bool|string|bytes\d*|bytes|mapping)$/i.test(
+                  tok
+                )
+              ) {
+                seenType = true;
+              }
+              continue;
+            }
+            // after type: skip modifiers
+            if (modifierKeywords.has(tok.toLowerCase())) continue;
+            // now tok is likely an identifier (may be comma separated list)
+            const parts = tok.split(/[,;]+/).filter(Boolean);
+            for (const p of parts) {
+              if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(p)) {
+                declaredIdentifiers.add(p);
+              }
+            }
+            // Continue scanning to capture multiple declarators in same line
+          }
+        }
+      } catch (e) {
+        // ignore tokenization issues — not critical
+      }
       // 9.1 Thiếu kiểu ở khai báo biến (trong cùng dòng, kể cả sau '{')
       // Tìm các đoạn bắt đầu câu hoặc sau ';' hoặc '{' có dạng <identifier> =
       const assignRx = /(^(?:\s*)|[;{]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*=/g;
@@ -542,6 +690,12 @@ export function analyzeText(
       while ((mAssign = assignRx.exec(noComment)) !== null) {
         const prefix = mAssign[1] || "";
         const name = mAssign[2];
+        // Nếu identifier đã được khai báo trước đó (có kiểu), bỏ qua — đây là assignment thường
+        if (declaredIdentifiers.has(name)) {
+          // tránh vòng lặp vô hạn nếu regex match zero-width
+          if (assignRx.lastIndex === mAssign.index) assignRx.lastIndex += 1;
+          continue;
+        }
         const nameStart = mAssign.index + prefix.length;
         // Báo lỗi: thiếu kiểu dữ liệu cho biến
         pushFinding(
@@ -558,7 +712,8 @@ export function analyzeText(
       }
 
       // 9.1.a Khai báo mảng thiếu kiểu dữ liệu: [] a; hoặc [] a = ...
-      const arrayDeclRx = /(^(?:\s*)|[;{]\s*)(\[\s*\])\s*([A-Za-z_][A-Za-z0-9_]*)\s*(;|=)/g;
+      const arrayDeclRx =
+        /(^(?:\s*)|[;{]\s*)(\[\s*\])\s*([A-Za-z_][A-Za-z0-9_]*)\s*(;|=)/g;
       let mArray: RegExpExecArray | null;
       while ((mArray = arrayDeclRx.exec(noComment)) !== null) {
         const prefix = mArray[1] || "";
@@ -591,7 +746,10 @@ export function analyzeText(
             cursor += part.length + 1;
             continue;
           }
-          const startsWithType = /^(uint\d*|int\d*|uint|int|address|bool|string|bytes\d*|bytes|mapping\s*\(|struct\s+\w+|enum\s+\w+|calldata|memory|storage)\b/i.test(trimmed);
+          const startsWithType =
+            /^(uint\d*|int\d*|uint|int|address|bool|string|bytes\d*|bytes|mapping\s*\(|struct\s+\w+|enum\s+\w+|calldata|memory|storage)\b/i.test(
+              trimmed
+            );
           if (!startsWithType) {
             const idMatch = part.match(/[A-Za-z_][A-Za-z0-9_]*/);
             if (idMatch && idMatch.index !== undefined) {
@@ -613,10 +771,15 @@ export function analyzeText(
 
       // 9.1.c Thiếu kiểu trong khai báo kết thúc bằng ';' không có '='
       // Ví dụ: "public number;" hoặc "number;"
-      const semiDecl = noComment.match(/^\s*(public|private|internal|external)?\s*([A-Za-z_][A-Za-z0-9_]*)\s*;\s*$/);
+      const semiDecl = noComment.match(
+        /^\s*(public|private|internal|external)?\s*([A-Za-z_][A-Za-z0-9_]*)\s*;\s*$/
+      );
       if (semiDecl && semiDecl.index !== undefined) {
         // Nếu dòng không chứa bất kỳ type keyword nào, coi là thiếu kiểu
-        const hasType = /(uint\d*|int\d*|uint|int|address|bool|string|bytes\d*|bytes|mapping\s*\(|struct\s+\w+|enum\s+\w+)/i.test(noComment);
+        const hasType =
+          /(uint\d*|int\d*|uint|int|address|bool|string|bytes\d*|bytes|mapping\s*\(|struct\s+\w+|enum\s+\w+)/i.test(
+            noComment
+          );
         if (!hasType) {
           const name = semiDecl[2];
           const nameIdx = noComment.indexOf(name);
@@ -648,7 +811,10 @@ export function analyzeText(
             continue;
           }
           // 9.2.a Tham số mảng thiếu element type: [] memory words
-          const arrParamStarts = /^\s*\[\s*\]\s*(?:memory|calldata|storage)?\s*[A-Za-z_][A-Za-z0-9_]*/i.test(param);
+          const arrParamStarts =
+            /^\s*\[\s*\]\s*(?:memory|calldata|storage)?\s*[A-Za-z_][A-Za-z0-9_]*/i.test(
+              param
+            );
           if (arrParamStarts) {
             const leading = raw.match(/^\s*/)?.[0].length ?? 0;
             const bracketRel = raw.slice(leading).indexOf("[");
@@ -667,7 +833,10 @@ export function analyzeText(
             }
           }
           // Nếu tham số bắt đầu không phải type (mà là identifier) → lỗi
-          const startsWithType = /^(uint\d*|int\d*|uint|int|address|bool|string|bytes\d*|bytes|mapping\s*\(|struct\s+\w+|enum\s+\w+|calldata|memory|storage)\b/i.test(param);
+          const startsWithType =
+            /^(uint\d*|int\d*|uint|int|address|bool|string|bytes\d*|bytes|mapping\s*\(|struct\s+\w+|enum\s+\w+|calldata|memory|storage)\b/i.test(
+              param
+            );
           if (!startsWithType) {
             const idMatch = raw.match(/[A-Za-z_][A-Za-z0-9_]*/);
             if (idMatch && idMatch.index !== undefined) {
@@ -697,9 +866,13 @@ export function analyzeText(
           const segStart = mUntyped.index;
           const segEnd = reUntypedParam.lastIndex;
           const segment = paramsStr.slice(segStart, segEnd);
-          const hasTypeInSeg = /(uint\d*|int\d*|uint|int|address|bool|string|bytes\d*|bytes|mapping\s*\(|struct\s+\w+|enum\s+\w+|calldata|memory|storage)/i.test(segment);
+          const hasTypeInSeg =
+            /(uint\d*|int\d*|uint|int|address|bool|string|bytes\d*|bytes|mapping\s*\(|struct\s+\w+|enum\s+\w+|calldata|memory|storage)/i.test(
+              segment
+            );
           if (!hasTypeInSeg) {
-            const absIdx = noComment.indexOf(paramsStr) + segStart + segment.indexOf(ident);
+            const absIdx =
+              noComment.indexOf(paramsStr) + segStart + segment.indexOf(ident);
             pushFinding(
               i,
               absIdx,
@@ -709,7 +882,8 @@ export function analyzeText(
               vscode.DiagnosticSeverity.Error
             );
           }
-          if (reUntypedParam.lastIndex === mUntyped.index) reUntypedParam.lastIndex += 1;
+          if (reUntypedParam.lastIndex === mUntyped.index)
+            reUntypedParam.lastIndex += 1;
         }
 
         // 9.2.d Fallback cuối: bắt tham số cuối cùng không type trước dấu ')'
@@ -717,10 +891,14 @@ export function analyzeText(
         if (tail && tail.index !== undefined) {
           const segStart = tail.index;
           const segment = paramsStr.slice(segStart);
-          const hasTypeInSeg = /(uint\d*|int\d*|uint|int|address|bool|string|bytes\d*|bytes|mapping\s*\(|struct\s+\w+|enum\s+\w+|calldata|memory|storage)/i.test(segment);
+          const hasTypeInSeg =
+            /(uint\d*|int\d*|uint|int|address|bool|string|bytes\d*|bytes|mapping\s*\(|struct\s+\w+|enum\s+\w+|calldata|memory|storage)/i.test(
+              segment
+            );
           if (!hasTypeInSeg) {
             const ident = tail[1];
-            const absIdx = noComment.indexOf(paramsStr) + segStart + segment.indexOf(ident);
+            const absIdx =
+              noComment.indexOf(paramsStr) + segStart + segment.indexOf(ident);
             pushFinding(
               i,
               absIdx,
@@ -740,7 +918,8 @@ export function analyzeText(
       if (parenStart >= 0 && parenEnd > parenStart) {
         const inside = funcLine.slice(parenStart + 1, parenEnd);
         const baseIndex = parenStart + 1;
-        const reEmptyArrayParam = /\[\s*\]\s*(?:memory|calldata|storage)?\s*[A-Za-z_][A-Za-z0-9_]*/g;
+        const reEmptyArrayParam =
+          /\[\s*\]\s*(?:memory|calldata|storage)?\s*[A-Za-z_][A-Za-z0-9_]*/g;
         let mArr: RegExpExecArray | null;
         while ((mArr = reEmptyArrayParam.exec(inside)) !== null) {
           const firstBracketRel = mArr[0].indexOf("[");
@@ -748,11 +927,12 @@ export function analyzeText(
           // Kiểm tra ký tự không phải khoảng trắng ngay trước '[' để tránh match "string[]"
           let k = relIdx - 1;
           while (k >= 0 && /\s/.test(inside[k])) k -= 1;
-          const prevChar = k >= 0 ? inside[k] : '';
+          const prevChar = k >= 0 ? inside[k] : "";
           const prevIsTyped = /[A-Za-z0-9_\]]/.test(prevChar); // 'string[]' hoặc 'bytes32[]'
           if (prevIsTyped) {
             // Bỏ qua vì đây là typed array hợp lệ
-            if (reEmptyArrayParam.lastIndex === mArr.index) reEmptyArrayParam.lastIndex += 1;
+            if (reEmptyArrayParam.lastIndex === mArr.index)
+              reEmptyArrayParam.lastIndex += 1;
             continue;
           }
           const absIdx = baseIndex + relIdx;
@@ -764,7 +944,8 @@ export function analyzeText(
             "MISSING_DATA_TYPE",
             vscode.DiagnosticSeverity.Error
           );
-          if (reEmptyArrayParam.lastIndex === mArr.index) reEmptyArrayParam.lastIndex += 1;
+          if (reEmptyArrayParam.lastIndex === mArr.index)
+            reEmptyArrayParam.lastIndex += 1;
         }
       }
     }
@@ -830,7 +1011,14 @@ export function analyzeText(
         const firstCh = seg[firstIdx];
         // Nếu ký tự đầu không phải là chữ hoặc '_' → lỗi ngay tại đó
         if (!firstCh || !/[A-Za-z_]/.test(firstCh)) {
-          pushFinding(i, firstAbs, firstAbs + 1, "Invalid function identifier.", "FUNCTION_NAMING", vscode.DiagnosticSeverity.Error);
+          pushFinding(
+            i,
+            firstAbs,
+            firstAbs + 1,
+            "Invalid function identifier.",
+            "FUNCTION_NAMING",
+            vscode.DiagnosticSeverity.Error
+          );
         } else {
           // Lấy identifier đầu
           const idMatch = seg.slice(firstIdx).match(/^[A-Za-z_][A-Za-z0-9_]*/);
@@ -841,11 +1029,25 @@ export function analyzeText(
           const rest = seg.slice(firstIdx + name.length);
           if (/[^\s]/.test(rest)) {
             // Có ký tự lạ như '.' hoặc extra token → lỗi tổng quát
-            pushFinding(i, nameStart, nameEnd, "Invalid function identifier.", "FUNCTION_NAMING", vscode.DiagnosticSeverity.Error);
+            pushFinding(
+              i,
+              nameStart,
+              nameEnd,
+              "Invalid function identifier.",
+              "FUNCTION_NAMING",
+              vscode.DiagnosticSeverity.Error
+            );
           } else {
             const fnRegex = makeRegex(naming.functionPattern);
             if (fnRegex && !fnRegex.test(name)) {
-              pushFinding(i, nameStart, nameEnd, `Invalid function identifier '${name}'.`, "FUNCTION_NAMING", vscode.DiagnosticSeverity.Error);
+              pushFinding(
+                i,
+                nameStart,
+                nameEnd,
+                `Invalid function identifier '${name}'.`,
+                "FUNCTION_NAMING",
+                vscode.DiagnosticSeverity.Error
+              );
             }
           }
         }
@@ -856,9 +1058,15 @@ export function analyzeText(
     if (rules.variableNaming && naming) {
       // Heuristic: a declaration that starts with a type keyword or mapping(
       const decl = stripInlineComments(line).trim();
-      const startsWithType = /^(?:uint\d*|int\d*|uint|int|address|bool|string|bytes\d*|bytes|mapping\s*\(|struct\s+\w+|enum\s+\w+)/i.test(decl);
+      const startsWithType =
+        /^(?:uint\d*|int\d*|uint|int|address|bool|string|bytes\d*|bytes|mapping\s*\(|struct\s+\w+|enum\s+\w+)/i.test(
+          decl
+        );
       const isFunctionLine = /^\s*function\b/i.test(decl);
-      const isEventOrOther = /^\s*(contract|interface|library|event|modifier|enum|struct)\b/i.test(decl);
+      const isEventOrOther =
+        /^\s*(contract|interface|library|event|modifier|enum|struct)\b/i.test(
+          decl
+        );
       if (startsWithType && !isFunctionLine && !isEventOrOther) {
         // Remove mapping generics to simplify tokenization
         const normalized = decl.replace(/\b(mapping\s*\([^)]*\))/gi, "mapping");
@@ -903,9 +1111,18 @@ export function analyzeText(
           // Nếu token tiếp theo cũng là identifier (ví dụ: "num ber"), coi như có khoảng trắng trong tên → lỗi tại token đầu
           const nextTok = tokens[identifierTokenIndex + 1];
           const nextIsArray = nextTok ? /\[.*\]$/.test(nextTok) : false;
-          const nextIsModifier = nextTok ? modifierKeywords.has(nextTok?.toLowerCase()) : false;
-          const nextLooksIdentifier = nextTok ? /^[A-Za-z_][A-Za-z0-9_]*;?$/.test(nextTok) : false;
-          if (nextTok && !nextIsArray && !nextIsModifier && nextLooksIdentifier) {
+          const nextIsModifier = nextTok
+            ? modifierKeywords.has(nextTok?.toLowerCase())
+            : false;
+          const nextLooksIdentifier = nextTok
+            ? /^[A-Za-z_][A-Za-z0-9_]*;?$/.test(nextTok)
+            : false;
+          if (
+            nextTok &&
+            !nextIsArray &&
+            !nextIsModifier &&
+            nextLooksIdentifier
+          ) {
             pushFinding(
               i,
               identifierStart,
@@ -916,8 +1133,12 @@ export function analyzeText(
             );
           } else {
             const identifierEnd = identifierStart + identifier.length;
-            const isConstant = /\b(constant|immutable)\b/i.test(decl) || /\bconstant\b/i.test(decl);
-            const varRegex = makeRegex(isConstant ? naming.constantPattern : naming.variablePattern);
+            const isConstant =
+              /\b(constant|immutable)\b/i.test(decl) ||
+              /\bconstant\b/i.test(decl);
+            const varRegex = makeRegex(
+              isConstant ? naming.constantPattern : naming.variablePattern
+            );
             if (varRegex && !varRegex.test(identifier)) {
               pushFinding(
                 i,
@@ -945,7 +1166,14 @@ export function analyzeText(
         const firstAbs = segStart + firstIdx;
         const firstCh = seg[firstIdx];
         if (!firstCh || !/[A-Za-z_]/.test(firstCh)) {
-          pushFinding(i, firstAbs, firstAbs + 1, "Invalid contract/interface/library identifier.", "CONTRACT_NAMING", vscode.DiagnosticSeverity.Error);
+          pushFinding(
+            i,
+            firstAbs,
+            firstAbs + 1,
+            "Invalid contract/interface/library identifier.",
+            "CONTRACT_NAMING",
+            vscode.DiagnosticSeverity.Error
+          );
         } else {
           const idMatch = seg.slice(firstIdx).match(/^[A-Za-z_][A-Za-z0-9_]*/);
           const name = idMatch ? idMatch[0] : "";
@@ -953,11 +1181,25 @@ export function analyzeText(
           const nameEnd = nameStart + name.length;
           const rest = seg.slice(firstIdx + name.length);
           if (/[^\s]/.test(rest)) {
-            pushFinding(i, nameStart, nameEnd, "Invalid contract/interface/library identifier.", "CONTRACT_NAMING", vscode.DiagnosticSeverity.Error);
+            pushFinding(
+              i,
+              nameStart,
+              nameEnd,
+              "Invalid contract/interface/library identifier.",
+              "CONTRACT_NAMING",
+              vscode.DiagnosticSeverity.Error
+            );
           } else {
             const rx = makeRegex(naming.contractPattern);
             if (rx && !rx.test(name)) {
-              pushFinding(i, nameStart, nameEnd, `Invalid contract/interface/library identifier '${name}'.`, "CONTRACT_NAMING", vscode.DiagnosticSeverity.Error);
+              pushFinding(
+                i,
+                nameStart,
+                nameEnd,
+                `Invalid contract/interface/library identifier '${name}'.`,
+                "CONTRACT_NAMING",
+                vscode.DiagnosticSeverity.Error
+              );
             }
           }
         }

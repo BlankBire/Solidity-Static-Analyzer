@@ -45,12 +45,14 @@ const vscode = __importStar(require("vscode"));
  * @param maxProblems Giới hạn số lượng lỗi tối đa
  * @returns Danh sách các findings (lỗi/cảnh báo)
  */
-function analyzeText(content, rules, maxProblems, naming) {
+function analyzeText(content, rules, maxProblems, naming, useAST) {
     const findings = [];
     const lines = content.split(/\r?\n/);
     const reportedKeys = new Set();
     // Theo dõi các identifier bị thiếu kiểu để cảnh báo khi được sử dụng ở các dòng sau
     const missingTypeIdentifiers = new Set();
+    // Theo dõi các identifier đã được khai báo (có type)
+    const declaredIdentifiers = new Set();
     // Hàm helper để thêm finding vào danh sách
     const pushFinding = (lineIndex, start, end, message, code, severity) => {
         if (findings.length >= maxProblems) {
@@ -71,6 +73,57 @@ function analyzeText(content, rules, maxProblems, naming) {
             },
         });
     };
+    // Nếu user bật useASTAnalyzer, thử parse bằng tree-sitter để có phân tích chính xác hơn
+    if (useAST) {
+        try {
+            // Load tree-sitter dynamically so extension vẫn hoạt động khi package không được cài
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const Parser = require("tree-sitter");
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const SolidityLang = require("tree-sitter-solidity");
+            const parser = new Parser();
+            parser.setLanguage(SolidityLang);
+            const tree = parser.parse(content);
+            // Helper: tìm return_statement trong subtree
+            const hasReturnInNode = (node) => {
+                if (!node)
+                    return false;
+                if (node.type === "return_statement")
+                    return true;
+                const kids = node.namedChildren || node.children || [];
+                for (const c of kids) {
+                    if (hasReturnInNode(c))
+                        return true;
+                }
+                return false;
+            };
+            // Duyệt AST để detect function definitions với 'returns' nhưng không có 'return'
+            const walk = (node) => {
+                if (!node)
+                    return;
+                // Node type names depend on grammar; tree-sitter-solidity uses 'function_definition'
+                if (node.type === "function_definition" ||
+                    node.type === "function_declaration") {
+                    const nodeText = content.slice(node.startIndex, node.endIndex);
+                    if (/returns\s*\(/i.test(nodeText)) {
+                        if (!hasReturnInNode(node)) {
+                            const pos = node.startPosition || { row: 0, column: 0 };
+                            pushFinding(pos.row, pos.column, pos.column + 1, "Missing return statement in function with return type.", "MISSING_RETURN", vscode.DiagnosticSeverity.Error);
+                        }
+                    }
+                }
+                // Có thể mở rộng ở đây để làm các checks khác chính xác hơn (naming, payable, etc.)
+                const kids = node.namedChildren || node.children || [];
+                for (const c of kids) {
+                    walk(c);
+                }
+            };
+            walk(tree.rootNode);
+        }
+        catch (err) {
+            // Nếu load tree-sitter thất bại, fallback về heuristic regex-based analyzer (phần tiếp theo)
+        }
+    }
     // =============================================================================
     // PHÂN TÍCH CÚ PHÁP - KIỂM TRA DẤU NGOẶC NHỌN (Phương pháp Stack-based)
     // =============================================================================
@@ -212,7 +265,8 @@ function analyzeText(content, rules, maxProblems, naming) {
                 !lineForDeclCheck.endsWith("{") &&
                 !lineForDeclCheck.endsWith("}")) {
                 // Tránh false positives cho danh sách tham số bằng cách bỏ qua các dòng chứa '(' trừ khi là mapping(
-                if (!lineForDeclCheck.includes("(") || /\bmapping\s*\(/i.test(lineForDeclCheck)) {
+                if (!lineForDeclCheck.includes("(") ||
+                    /\bmapping\s*\(/i.test(lineForDeclCheck)) {
                     const tokens = lineForDeclCheck
                         .replace(/\b(mapping\s*\([^)]*\))/gi, "mapping")
                         .split(/\s+/)
@@ -256,7 +310,9 @@ function analyzeText(content, rules, maxProblems, naming) {
             }
             // 5.3 Câu lệnh nhiều dòng kết thúc bằng ')' mà không có ';'
             // Ví dụ: assignment hoặc call được chia thành nhiều dòng, dòng cuối kết thúc bằng ')'
-            if (stripInlineComments(trimmedLine).endsWith(")") && !stripInlineComments(trimmedLine).endsWith(";") && !isCommentOrBlank(trimmedLine)) {
+            if (stripInlineComments(trimmedLine).endsWith(")") &&
+                !stripInlineComments(trimmedLine).endsWith(";") &&
+                !isCommentOrBlank(trimmedLine)) {
                 // Nhìn lại tối đa 5 dòng để tìm starter cần dấu chấm phẩy
                 const lookbackLimit = Math.max(0, i - 5);
                 let foundStarter = false;
@@ -296,7 +352,9 @@ function analyzeText(content, rules, maxProblems, naming) {
                         continue;
                     }
                     // Nếu gặp dòng đã kết thúc bằng ';' hoặc bắt đầu/kết thúc block, dừng lại
-                    if (prevNoComment.endsWith(";") || prevNoComment.endsWith("{") || prevNoComment.endsWith("}")) {
+                    if (prevNoComment.endsWith(";") ||
+                        prevNoComment.endsWith("{") ||
+                        prevNoComment.endsWith("}")) {
                         break;
                     }
                     // Kiểm tra các pattern khác nhau cần dấu chấm phẩy
@@ -307,7 +365,7 @@ function analyzeText(content, rules, maxProblems, naming) {
                         /^\s*\w+\.\w+\s*\(/i, // Method calls như "logic.delegatecall("
                         /^\s*\w+\s*\(/i, // Function calls
                     ];
-                    const hasPattern = needsSemicolonPatterns.some(pattern => pattern.test(prevNoComment));
+                    const hasPattern = needsSemicolonPatterns.some((pattern) => pattern.test(prevNoComment));
                     if (hasPattern) {
                         foundStarter = true;
                         break;
@@ -321,13 +379,17 @@ function analyzeText(content, rules, maxProblems, naming) {
             // 5.4 Identifier đơn lẻ ở cuối dòng mà không có dấu chấm phẩy (như "logic" trong ví dụ của user)
             // Điều này bắt các trường hợp một identifier đơn lẻ bị treo ở cuối dòng
             const singleIdentifierPattern = /^\s*[A-Za-z_][A-Za-z0-9_]*\s*$/;
-            if (singleIdentifierPattern.test(stripInlineComments(trimmedLine)) && !isCommentOrBlank(trimmedLine)) {
+            if (singleIdentifierPattern.test(stripInlineComments(trimmedLine)) &&
+                !isCommentOrBlank(trimmedLine)) {
                 // Đảm bảo nó không phải là function declaration, modifier, hoặc các câu lệnh single-word hợp lệ khác
                 const isFunctionDeclaration = /^\s*(function|modifier|event|struct|enum|contract|interface|library)\b/i.test(trimmedLine);
                 const isImportStatement = /^\s*(import|pragma)\b/i.test(trimmedLine);
                 const isUsingStatement = /^\s*using\b/i.test(trimmedLine);
                 const isConstructor = /^\s*constructor\b/i.test(trimmedLine);
-                if (!isFunctionDeclaration && !isImportStatement && !isUsingStatement && !isConstructor) {
+                if (!isFunctionDeclaration &&
+                    !isImportStatement &&
+                    !isUsingStatement &&
+                    !isConstructor) {
                     const idx = getLastCodeCharIndex(line);
                     pushFinding(i, idx, idx + 1, "Missing semicolon at end of statement.", "MISSING_SEMICOLON", vscode.DiagnosticSeverity.Error);
                 }
@@ -386,6 +448,56 @@ function analyzeText(content, rules, maxProblems, naming) {
         // 9. MISSING_DATA_TYPE - Kiểm tra khai báo biến thiếu kiểu dữ liệu
         if (rules.missingDataType) {
             const noComment = stripInlineComments(line);
+            // Nếu dòng chứa khai báo với kiểu (ví dụ: "address public owner;"), nhớ tên biến
+            // để tránh báo false-positive khi sau đó chỉ gán giá trị cho biến đã khai báo.
+            try {
+                const typeKeywordPattern = /^(?:.*\b(?:uint\d*|int\d*|uint|int|address|bool|string|bytes\d*|bytes|mapping)\b)/i;
+                if (!/\bfunction\b/i.test(noComment) &&
+                    typeKeywordPattern.test(noComment)) {
+                    // Tokenize và lấy các identifier sau từ khóa kiểu, bỏ các modifiers
+                    const normalized = noComment.replace(/\b(mapping\s*\([^)]*\))/gi, "mapping");
+                    const tokens = normalized.split(/\s+/).filter(Boolean);
+                    const modifierKeywords = new Set([
+                        "public",
+                        "private",
+                        "internal",
+                        "external",
+                        "view",
+                        "pure",
+                        "payable",
+                        "constant",
+                        "immutable",
+                        "memory",
+                        "storage",
+                        "calldata",
+                    ]);
+                    // Tìm token đầu tiên không phải modifier và không phải kiểu
+                    let seenType = false;
+                    for (let t = 0; t < tokens.length; t += 1) {
+                        const tok = tokens[t].replace(/[,;{}()]$/g, "");
+                        if (!seenType) {
+                            if (/^(?:uint\d*|int\d*|uint|int|address|bool|string|bytes\d*|bytes|mapping)$/i.test(tok)) {
+                                seenType = true;
+                            }
+                            continue;
+                        }
+                        // after type: skip modifiers
+                        if (modifierKeywords.has(tok.toLowerCase()))
+                            continue;
+                        // now tok is likely an identifier (may be comma separated list)
+                        const parts = tok.split(/[,;]+/).filter(Boolean);
+                        for (const p of parts) {
+                            if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(p)) {
+                                declaredIdentifiers.add(p);
+                            }
+                        }
+                        // Continue scanning to capture multiple declarators in same line
+                    }
+                }
+            }
+            catch (e) {
+                // ignore tokenization issues — not critical
+            }
             // 9.1 Thiếu kiểu ở khai báo biến (trong cùng dòng, kể cả sau '{')
             // Tìm các đoạn bắt đầu câu hoặc sau ';' hoặc '{' có dạng <identifier> =
             const assignRx = /(^(?:\s*)|[;{]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*=/g;
@@ -393,6 +505,13 @@ function analyzeText(content, rules, maxProblems, naming) {
             while ((mAssign = assignRx.exec(noComment)) !== null) {
                 const prefix = mAssign[1] || "";
                 const name = mAssign[2];
+                // Nếu identifier đã được khai báo trước đó (có kiểu), bỏ qua — đây là assignment thường
+                if (declaredIdentifiers.has(name)) {
+                    // tránh vòng lặp vô hạn nếu regex match zero-width
+                    if (assignRx.lastIndex === mAssign.index)
+                        assignRx.lastIndex += 1;
+                    continue;
+                }
                 const nameStart = mAssign.index + prefix.length;
                 // Báo lỗi: thiếu kiểu dữ liệu cho biến
                 pushFinding(i, nameStart, nameStart + name.length, "Missing data type declaration for variable.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
@@ -541,7 +660,7 @@ function analyzeText(content, rules, maxProblems, naming) {
                     let k = relIdx - 1;
                     while (k >= 0 && /\s/.test(inside[k]))
                         k -= 1;
-                    const prevChar = k >= 0 ? inside[k] : '';
+                    const prevChar = k >= 0 ? inside[k] : "";
                     const prevIsTyped = /[A-Za-z0-9_\]]/.test(prevChar); // 'string[]' hoặc 'bytes32[]'
                     if (prevIsTyped) {
                         // Bỏ qua vì đây là typed array hợp lệ
@@ -672,14 +791,22 @@ function analyzeText(content, rules, maxProblems, naming) {
                     // Nếu token tiếp theo cũng là identifier (ví dụ: "num ber"), coi như có khoảng trắng trong tên → lỗi tại token đầu
                     const nextTok = tokens[identifierTokenIndex + 1];
                     const nextIsArray = nextTok ? /\[.*\]$/.test(nextTok) : false;
-                    const nextIsModifier = nextTok ? modifierKeywords.has(nextTok?.toLowerCase()) : false;
-                    const nextLooksIdentifier = nextTok ? /^[A-Za-z_][A-Za-z0-9_]*;?$/.test(nextTok) : false;
-                    if (nextTok && !nextIsArray && !nextIsModifier && nextLooksIdentifier) {
+                    const nextIsModifier = nextTok
+                        ? modifierKeywords.has(nextTok?.toLowerCase())
+                        : false;
+                    const nextLooksIdentifier = nextTok
+                        ? /^[A-Za-z_][A-Za-z0-9_]*;?$/.test(nextTok)
+                        : false;
+                    if (nextTok &&
+                        !nextIsArray &&
+                        !nextIsModifier &&
+                        nextLooksIdentifier) {
                         pushFinding(i, identifierStart, identifierStart + identifier.length, "Invalid variable identifier.", "VARIABLE_NAMING", vscode.DiagnosticSeverity.Error);
                     }
                     else {
                         const identifierEnd = identifierStart + identifier.length;
-                        const isConstant = /\b(constant|immutable)\b/i.test(decl) || /\bconstant\b/i.test(decl);
+                        const isConstant = /\b(constant|immutable)\b/i.test(decl) ||
+                            /\bconstant\b/i.test(decl);
                         const varRegex = makeRegex(isConstant ? naming.constantPattern : naming.variablePattern);
                         if (varRegex && !varRegex.test(identifier)) {
                             pushFinding(i, identifierStart, identifierEnd, `Invalid variable identifier '${identifier}'.`, "VARIABLE_NAMING", vscode.DiagnosticSeverity.Error);
