@@ -47,7 +47,58 @@ const vscode = __importStar(require("vscode"));
  */
 function analyzeText(content, rules, maxProblems, naming, useAST) {
     const findings = [];
-    const lines = content.split(/\r?\n/);
+    // Nếu user bật useASTAnalyzer, sẽ dùng tree-sitter để tìm chính xác comment
+    // và loại bỏ chúng trước khi phân tích theo dòng. Nếu không có AST hoặc lỗi,
+    // fallback về nội dung gốc và dùng stripping regex sau.
+    let contentNoComments = content;
+    // Parser/tree được khởi tạo nếu useAST được bật và tree-sitter tồn tại
+    let parser = undefined;
+    let tree = undefined;
+    if (useAST) {
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const Parser = require("tree-sitter");
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const SolidityLang = require("tree-sitter-solidity");
+            parser = new Parser();
+            parser.setLanguage(SolidityLang);
+            tree = parser.parse(content);
+            // Collect comment node ranges
+            const commentRanges = [];
+            const collectComments = (node) => {
+                if (!node)
+                    return;
+                const t = String(node.type).toLowerCase();
+                if (t.includes("comment")) {
+                    commentRanges.push([node.startIndex, node.endIndex]);
+                }
+                const kids = node.namedChildren || node.children || [];
+                for (const c of kids)
+                    collectComments(c);
+            };
+            if (tree && tree.rootNode)
+                collectComments(tree.rootNode);
+            // Remove comment ranges from content (iterate từ cuối về đầu để tránh ảnh hưởng chỉ số)
+            if (commentRanges.length > 0) {
+                commentRanges.sort((a, b) => b[0] - a[0]);
+                for (const [s, e] of commentRanges) {
+                    contentNoComments =
+                        contentNoComments.slice(0, s) + contentNoComments.slice(e);
+                }
+            }
+        }
+        catch (err) {
+            // Nếu không có tree-sitter hoặc parse lỗi → fallback về stripping regex phía dưới
+            contentNoComments = content;
+            parser = undefined;
+            tree = undefined;
+        }
+    }
+    // Nếu AST không được dùng/không thành công, loại bỏ block comments bằng regex như fallback
+    if (!useAST || !tree) {
+        contentNoComments = contentNoComments.replace(/\/\*[\s\S]*?\*\//g, "");
+    }
+    const lines = contentNoComments.split(/\r?\n/);
     const reportedKeys = new Set();
     // Theo dõi các identifier bị thiếu kiểu để cảnh báo khi được sử dụng ở các dòng sau
     const missingTypeIdentifiers = new Set();
@@ -73,17 +124,9 @@ function analyzeText(content, rules, maxProblems, naming, useAST) {
             },
         });
     };
-    // Nếu user bật useASTAnalyzer, thử parse bằng tree-sitter để có phân tích chính xác hơn
-    if (useAST) {
+    // Nếu AST đã parse thành công phía trên, dùng lại tree để kiểm tra 'missingReturn' chính xác hơn.
+    if (tree) {
         try {
-            // Load tree-sitter dynamically so extension vẫn hoạt động khi package không được cài
-            // eslint-disable-next-line @typescript-eslint/no-var-requires
-            const Parser = require("tree-sitter");
-            // eslint-disable-next-line @typescript-eslint/no-var-requires
-            const SolidityLang = require("tree-sitter-solidity");
-            const parser = new Parser();
-            parser.setLanguage(SolidityLang);
-            const tree = parser.parse(content);
             // Helper: tìm return_statement trong subtree
             const hasReturnInNode = (node) => {
                 if (!node)
@@ -112,7 +155,6 @@ function analyzeText(content, rules, maxProblems, naming, useAST) {
                         }
                     }
                 }
-                // Có thể mở rộng ở đây để làm các checks khác chính xác hơn (naming, payable, etc.)
                 const kids = node.namedChildren || node.children || [];
                 for (const c of kids) {
                     walk(c);
@@ -121,7 +163,7 @@ function analyzeText(content, rules, maxProblems, naming, useAST) {
             walk(tree.rootNode);
         }
         catch (err) {
-            // Nếu load tree-sitter thất bại, fallback về heuristic regex-based analyzer (phần tiếp theo)
+            // ignore AST traversal errors and continue with heuristic checks
         }
     }
     // =============================================================================
@@ -162,14 +204,12 @@ function analyzeText(content, rules, maxProblems, naming, useAST) {
     // PHÂN TÍCH TỪNG DÒNG
     // =============================================================================
     for (let i = 0; i < lines.length; i += 1) {
-        const line = lines[i];
-        const lineNoInlineComment = line.split("//")[0];
+        const rawLine = lines[i];
+        // Loại bỏ inline comment '//' trên cùng 1 dòng (block comments đã bị xóa phía trên)
+        const stripInlineComments = (s) => s.split("//")[0];
+        const line = stripInlineComments(rawLine);
+        const lineNoInlineComment = line;
         const lineLower = line.toLowerCase();
-        const stripInlineComments = (s) => {
-            const noLine = s.split("//")[0];
-            const blockIdx = noLine.indexOf("/*");
-            return blockIdx >= 0 ? noLine.slice(0, blockIdx) : noLine;
-        };
         const getLastCodeCharIndex = (s) => {
             const codePart = stripInlineComments(s);
             // vị trí ký tự code cuối cùng (bỏ khoảng trắng cuối)
