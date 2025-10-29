@@ -54,6 +54,9 @@ function analyzeText(content, rules, maxProblems, naming, useAST) {
     // Parser/tree được khởi tạo nếu useAST được bật và tree-sitter tồn tại
     let parser = undefined;
     let tree = undefined;
+    // commentRanges and ignoredRanges will be filled if AST parsing succeeds
+    let commentRanges = [];
+    let ignoredRanges = [];
     if (useAST) {
         try {
             // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -64,7 +67,7 @@ function analyzeText(content, rules, maxProblems, naming, useAST) {
             parser.setLanguage(SolidityLang);
             tree = parser.parse(content);
             // Collect comment node ranges
-            const commentRanges = [];
+            commentRanges = [];
             const collectComments = (node) => {
                 if (!node)
                     return;
@@ -78,6 +81,21 @@ function analyzeText(content, rules, maxProblems, naming, useAST) {
             };
             if (tree && tree.rootNode)
                 collectComments(tree.rootNode);
+            // Collect ranges to ignore for parentheses checks (e.g., return/emit statements)
+            const ignoreNodeTypes = new Set(["return_statement", "emit_statement"]);
+            ignoredRanges = [];
+            const collectIgnored = (node) => {
+                if (!node)
+                    return;
+                if (ignoreNodeTypes.has(String(node.type))) {
+                    ignoredRanges.push([node.startIndex, node.endIndex]);
+                }
+                const kids = node.namedChildren || node.children || [];
+                for (const c of kids)
+                    collectIgnored(c);
+            };
+            if (tree && tree.rootNode)
+                collectIgnored(tree.rootNode);
             // Remove comment ranges from content (iterate từ cuối về đầu để tránh ảnh hưởng chỉ số)
             if (commentRanges.length > 0) {
                 commentRanges.sort((a, b) => b[0] - a[0]);
@@ -88,16 +106,13 @@ function analyzeText(content, rules, maxProblems, naming, useAST) {
             }
         }
         catch (err) {
-            // Nếu không có tree-sitter hoặc parse lỗi → fallback về stripping regex phía dưới
+            // Nếu không có tree-sitter hoặc parse lỗi → fallback về stripping regex
             contentNoComments = content;
             parser = undefined;
             tree = undefined;
         }
     }
-    // Nếu AST không được dùng/không thành công, loại bỏ block comments bằng regex như fallback
-    if (!useAST || !tree) {
-        contentNoComments = contentNoComments.replace(/\/\*[\s\S]*?\*\//g, "");
-    }
+    // Split into lines after comments have been removed (from AST or fallback)
     const lines = contentNoComments.split(/\r?\n/);
     const reportedKeys = new Set();
     // Theo dõi các identifier bị thiếu kiểu để cảnh báo khi được sử dụng ở các dòng sau
@@ -435,23 +450,138 @@ function analyzeText(content, rules, maxProblems, naming, useAST) {
                 }
             }
         }
-        // 6. MISSING_PARENTHESES - Kiểm tra thiếu dấu ngoặc đơn trong function calls
+        // 6. MISSING_PARENTHESES - improved checks
         if (rules.missingParentheses) {
+            // First: character-level pass over the whole comment-stripped content to find
+            // unmatched parentheses (extra closing or missing closing).
+            // We'll do this only once per analysis (so guard by a flag on first line i==0).
+            if (i === 0) {
+                const parenStack = [];
+                let lineIdx = 0;
+                let colIdx = 0;
+                // Use original content indices for accurate mapping to AST node ranges
+                const text = content;
+                for (let p = 0; p < text.length; p += 1) {
+                    const ch = text[p];
+                    // skip characters that are inside comment ranges
+                    const inComment = commentRanges.some(([s, e]) => p >= s && p < e);
+                    if (inComment) {
+                        if (ch === "\n") {
+                            lineIdx += 1;
+                            colIdx = 0;
+                        }
+                        else {
+                            colIdx += 1;
+                        }
+                        continue;
+                    }
+                    if (ch === "\n") {
+                        lineIdx += 1;
+                        colIdx = 0;
+                        continue;
+                    }
+                    if (ch === "(") {
+                        parenStack.push({ line: lineIdx, col: colIdx, idx: p });
+                    }
+                    else if (ch === ")") {
+                        if (parenStack.length === 0) {
+                            // Extra closing parenthesis — skip if this position lies inside an ignored AST node
+                            const inIgnored = ignoredRanges.some(([s, e]) => p >= s && p < e);
+                            const currentLineText = (content.split(/\r?\n/)[lineIdx] || "").trim();
+                            const stmtKeywordRx = /^\s*(return|emit|require|assert|revert|break|continue)\b/i;
+                            const inStmtKeyword = stmtKeywordRx.test(currentLineText);
+                            if (!inIgnored && !inStmtKeyword) {
+                                pushFinding(lineIdx, colIdx, colIdx + 1, "Extra closing parenthesis.", "MISSING_PARENTHESES", vscode.DiagnosticSeverity.Error);
+                            }
+                        }
+                        else {
+                            parenStack.pop();
+                        }
+                    }
+                    colIdx += 1;
+                }
+                // Any remaining '(' without matching ')' → report for the last one
+                if (parenStack.length > 0) {
+                    const last = parenStack[parenStack.length - 1];
+                    // skip if the '(' is inside ignored AST node (e.g., return)
+                    const inIgnoredOpen = ignoredRanges.some(([s, e]) => last.idx >= s && last.idx < e);
+                    const lastLineText = (content.split(/\r?\n/)[last.line] || "").trim();
+                    const stmtKeywordRx = /^\s*(return|emit|require|assert|revert|break|continue)\b/i;
+                    const inStmtKeywordLast = stmtKeywordRx.test(lastLineText);
+                    if (!inIgnoredOpen && !inStmtKeywordLast) {
+                        pushFinding(last.line, last.col, last.col + 1, "Missing closing parenthesis.", "MISSING_PARENTHESES", vscode.DiagnosticSeverity.Error);
+                    }
+                }
+            }
             const trimmedLine = line.trim();
-            // Pattern function call thiếu dấu ngoặc đơn
-            const functionCallPattern = /^\s*\w+\s*[^(\s{;}]$/;
-            if (functionCallPattern.test(line) &&
-                !trimmedLine.endsWith(";") &&
-                !trimmedLine.endsWith(",") &&
-                !trimmedLine.endsWith("{") &&
-                !trimmedLine.endsWith("}") &&
-                !trimmedLine.startsWith("//") &&
-                !trimmedLine.startsWith("/*") &&
-                !line.includes("=") && // Không phải assignment
-                !line.includes(":") // Không phải mapping
-            ) {
-                const idx = line.length - 1;
-                pushFinding(i, idx, idx + 1, "Missing parentheses for function call.", "MISSING_PARENTHESES", vscode.DiagnosticSeverity.Error);
+            if (trimmedLine === "")
+                continue;
+            // --- Control statements: if / for / while should be followed by '('
+            const controlRx = /^\s*(if|for|while)\b/;
+            const controlMatch = line.match(controlRx);
+            if (controlMatch) {
+                const kw = controlMatch[1];
+                const kwIdx = lineLower.indexOf(kw);
+                // find first non-space char after keyword
+                let j = kwIdx + kw.length;
+                while (j < line.length && /\s/.test(line[j]))
+                    j += 1;
+                const nextCh = line[j] || "";
+                // allow '(' on next non-empty line (multi-line condition)
+                const allowMultiLineParen = () => {
+                    for (let k = i + 1; k < Math.min(lines.length, i + 4); k += 1) {
+                        const nxt = lines[k].trim();
+                        if (nxt === "")
+                            continue;
+                        return nxt[0] === "(";
+                    }
+                    return false;
+                };
+                if (nextCh !== "(") {
+                    if (!allowMultiLineParen()) {
+                        pushFinding(i, kwIdx, kwIdx + kw.length, `Missing parentheses after '${kw}'.`, "MISSING_PARENTHESES", vscode.DiagnosticSeverity.Error);
+                        // don't continue; still run other checks
+                    }
+                }
+            }
+            // --- Function-call style: detect identifier (or member access) followed by
+            // whitespace and then an argument token, but with no '(' after the identifier.
+            // Examples to catch: `transfer msg.sender;` → should be `transfer(msg.sender);`
+            // Conservative: skip lines that look like declarations or assignments.
+            const declOrKeyword = /\b(function|contract|interface|library|event|modifier|struct|enum|pragma|import)\b/i;
+            const stmtKeywordRx = /^\s*(return|emit|require|assert|revert|break|continue)\b/i;
+            if (declOrKeyword.test(line) || stmtKeywordRx.test(line)) {
+                // skip declaration or statement lines
+            }
+            else {
+                // candidate detection
+                const funcCallRx = /(^|\s)([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)(?:\s+)([A-Za-z_0-9`"'\[\{])/g;
+                let m;
+                while ((m = funcCallRx.exec(line)) !== null) {
+                    const full = m[0];
+                    const name = m[2];
+                    const nameIdx = m.index + (m[1] ? m[1].length : 0);
+                    // ensure there's no '(' after the name before end-of-statement or before ';'
+                    const after = line.slice(nameIdx + name.length);
+                    const nextParen = after.indexOf("(");
+                    const nextSemi = after.indexOf(";");
+                    // If '(' appears and before ; or end, it's fine
+                    if (nextParen >= 0 && (nextSemi === -1 || nextParen < nextSemi)) {
+                        continue; // has parentheses — OK
+                    }
+                    // Basic exclusions: if this is likely a type or mapping annotation, skip
+                    if (/^(uint|int|address|bool|string|bytes|mapping)\b/i.test(line.trim()))
+                        continue;
+                    // If the name is immediately followed by ':' or '=' in original, skip
+                    const afterNameTrim = after.trimLeft();
+                    if (afterNameTrim.startsWith(":") || afterNameTrim.startsWith("= "))
+                        continue;
+                    // Heuristic: only report when line ends with ';' or ',' or when name appears to be a call site
+                    const lineEndsCallish = /[;,)\]}\s]$/.test(line) || /;/.test(line);
+                    if (lineEndsCallish) {
+                        pushFinding(i, nameIdx, nameIdx + name.length, "Missing parentheses for function call.", "MISSING_PARENTHESES", vscode.DiagnosticSeverity.Error);
+                    }
+                }
             }
         }
         // 7. MISSING_RETURN - Kiểm tra thiếu return statement
