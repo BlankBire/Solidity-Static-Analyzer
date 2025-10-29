@@ -1,2 +1,4 @@
 *.js linguist-generated=false
 out/* linguist-generated=false
+*.sol linguist-generated=false
+test/* linguist-generated=false
