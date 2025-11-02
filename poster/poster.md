@@ -1,4 +1,4 @@
-# Solidity Static Analyzer - Nội dung Poster
+# Solidity Static Analyzer - Nội dung Poster (Báo cáo tiến độ)
 
 ## TÓM TẮT
 
