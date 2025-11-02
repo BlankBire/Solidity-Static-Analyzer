@@ -581,12 +581,39 @@ function analyzeText(content, rules, maxProblems, naming, useAST) {
                     }
                     else if (ch === ")") {
                         if (parenStack.length === 0) {
-                            // Extra closing parenthesis — skip if this position lies inside an ignored AST node
+                            // Extra closing parenthesis — decide whether it's an unmatched ')' or
+                            // a missing opening '(' after a keyword like `require`.
                             const inIgnored = ignoredRanges.some(([s, e]) => p >= s && p < e);
-                            const currentLineText = (content.split(/\r?\n/)[lineIdx] || "").trim();
-                            const stmtKeywordRx = /^\s*(return|emit|require|assert|revert|break|continue)\b/i;
-                            const inStmtKeyword = stmtKeywordRx.test(currentLineText);
-                            if (!inIgnored && !inStmtKeyword) {
+                            const currentLine = content.split(/\r?\n/)[lineIdx] || "";
+                            const currentLineText = currentLine;
+                            // Look for keywords that normally take parentheses
+                            const callKeywords = /\b(require|assert|revert|emit)\b/gi;
+                            let lastMatch = null;
+                            let mTmp;
+                            while ((mTmp = callKeywords.exec(currentLineText)) !== null) {
+                                if (mTmp.index < colIdx)
+                                    lastMatch = mTmp;
+                                else
+                                    break;
+                            }
+                            if (!inIgnored && lastMatch) {
+                                const kwStart = lastMatch.index;
+                                const kwName = lastMatch[1] ||
+                                    currentLineText.slice(kwStart).split(/\s+/)[0];
+                                const kwEnd = kwStart + kwName.length;
+                                // If there is no '(' between keyword end and this ')' then it's likely
+                                // a missing opening parenthesis after the keyword. Report at keyword.
+                                const between = currentLineText.slice(kwEnd, colIdx);
+                                if (between.indexOf("(") === -1) {
+                                    pushFinding(lineIdx, kwStart, kwEnd, `Missing opening parenthesis after '${kwName}'.`, "MISSING_PARENTHESES", vscode.DiagnosticSeverity.Error);
+                                }
+                                else {
+                                    // There's a '(' earlier — fallback to extra closing report
+                                    pushFinding(lineIdx, colIdx, colIdx + 1, "Extra closing parenthesis.", "MISSING_PARENTHESES", vscode.DiagnosticSeverity.Error);
+                                }
+                            }
+                            else if (!inIgnored) {
+                                // No keyword detected before this ')', report extra closing
                                 pushFinding(lineIdx, colIdx, colIdx + 1, "Extra closing parenthesis.", "MISSING_PARENTHESES", vscode.DiagnosticSeverity.Error);
                             }
                         }
@@ -602,9 +629,7 @@ function analyzeText(content, rules, maxProblems, naming, useAST) {
                     // skip if the '(' is inside ignored AST node (e.g., return)
                     const inIgnoredOpen = ignoredRanges.some(([s, e]) => last.idx >= s && last.idx < e);
                     const lastLineText = (content.split(/\r?\n/)[last.line] || "").trim();
-                    const stmtKeywordRx = /^\s*(return|emit|require|assert|revert|break|continue)\b/i;
-                    const inStmtKeywordLast = stmtKeywordRx.test(lastLineText);
-                    if (!inIgnoredOpen && !inStmtKeywordLast) {
+                    if (!inIgnoredOpen) {
                         pushFinding(last.line, last.col, last.col + 1, "Missing closing parenthesis.", "MISSING_PARENTHESES", vscode.DiagnosticSeverity.Error);
                     }
                 }
