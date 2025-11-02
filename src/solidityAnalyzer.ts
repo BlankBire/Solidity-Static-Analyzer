@@ -122,6 +122,72 @@ export function analyzeText(
             contentNoComments.slice(0, s) + contentNoComments.slice(e);
         }
       }
+      // Collect declared identifiers from AST: state vars, parameters, and local var declarations
+      try {
+        const collectDeclared = (node: any) => {
+          if (!node) return;
+          const t = String(node.type).toLowerCase();
+          // state variable declarations (tree-sitter-solidity: state_variable_declaration)
+          if (
+            t === "state_variable_declaration" ||
+            t === "variable_declaration"
+          ) {
+            const kids = node.namedChildren || node.children || [];
+            for (const c of kids) {
+              try {
+                if (
+                  c.type === "identifier" ||
+                  String(c.type).toLowerCase() === "identifier"
+                ) {
+                  declaredIdentifiers.add(
+                    content.slice(c.startIndex, c.endIndex)
+                  );
+                } else if (c.namedChildren && c.namedChildren.length > 0) {
+                  for (const cc of c.namedChildren) {
+                    if (cc.type === "identifier") {
+                      declaredIdentifiers.add(
+                        content.slice(cc.startIndex, cc.endIndex)
+                      );
+                    }
+                  }
+                }
+              } catch (_) {
+                // noop
+              }
+            }
+          }
+          // function parameters
+          if (t === "parameter_list" || t === "parameter") {
+            const kids = node.namedChildren || node.children || [];
+            for (const c of kids) {
+              if (c.type === "identifier") {
+                declaredIdentifiers.add(
+                  content.slice(c.startIndex, c.endIndex)
+                );
+              }
+            }
+          }
+          // local variable declarations may appear as variable_declaration_statement
+          if (
+            t === "variable_declaration_list" ||
+            t === "variable_declaration_statement"
+          ) {
+            const kids = node.namedChildren || node.children || [];
+            for (const c of kids) {
+              if (c.type === "identifier") {
+                declaredIdentifiers.add(
+                  content.slice(c.startIndex, c.endIndex)
+                );
+              }
+            }
+          }
+          const kids = node.namedChildren || node.children || [];
+          for (const c of kids) collectDeclared(c);
+        };
+        if (tree && tree.rootNode) collectDeclared(tree.rootNode);
+      } catch (e) {
+        // ignore
+      }
     } catch (err) {
       // Nếu không có tree-sitter hoặc parse lỗi → fallback về stripping regex
       contentNoComments = content;
@@ -213,6 +279,53 @@ export function analyzeText(
       walk(tree.rootNode);
     } catch (err) {
       // ignore AST traversal errors and continue with heuristic checks
+    }
+  }
+
+  // AST-based expression statement detection for missing parentheses
+  if (tree && rules.missingParentheses) {
+    try {
+      const isInsideIgnored = (sidx: number, eidx: number) =>
+        ignoredRanges.some(([s, e]) => sidx >= s && eidx <= e);
+
+      const walkExprs = (node: any) => {
+        if (!node) return;
+        // expression_statement nodes often wrap bare expressions like `transfer msg.sender;`
+        if (String(node.type) === "expression_statement") {
+          const expr = node.namedChildren && node.namedChildren[0];
+          if (expr) {
+            const exprType = String(expr.type);
+            // If expression is a 'identifier' or 'member_expression' (member access) but not a call_expression
+            if (
+              (exprType === "identifier" || exprType === "member_expression") &&
+              expr.type !== "call_expression"
+            ) {
+              const text = content.slice(expr.startIndex, expr.endIndex);
+              // Skip if identifier is a declared identifier (assignment target or var)
+              const idName = text.split(/\.|\s/)[0];
+              if (declaredIdentifiers.has(idName)) {
+                // skip -- it's likely a bare variable usage
+              } else if (!isInsideIgnored(expr.startIndex, expr.endIndex)) {
+                const pos = expr.startPosition || { row: 0, column: 0 };
+                pushFinding(
+                  pos.row,
+                  pos.column,
+                  pos.column + idName.length,
+                  "Missing parentheses for function call.",
+                  "MISSING_PARENTHESES",
+                  vscode.DiagnosticSeverity.Error
+                );
+              }
+            }
+          }
+        }
+        const kids = node.namedChildren || node.children || [];
+        for (const c of kids) walkExprs(c);
+      };
+
+      walkExprs(tree.rootNode);
+    } catch (e) {
+      // ignore
     }
   }
 
