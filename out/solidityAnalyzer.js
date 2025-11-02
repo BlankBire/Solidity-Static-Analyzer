@@ -47,6 +47,8 @@ const vscode = __importStar(require("vscode"));
  */
 function analyzeText(content, rules, maxProblems, naming, useAST) {
     const findings = [];
+    // Reported keys to deduplicate diagnostics
+    // (moved declarations earlier to enable AST traversal to populate them)
     // Nếu user bật useASTAnalyzer, sẽ dùng tree-sitter để tìm chính xác comment
     // và loại bỏ chúng trước khi phân tích theo dòng. Nếu không có AST hoặc lỗi,
     // fallback về nội dung gốc và dùng stripping regex sau.
@@ -57,6 +59,16 @@ function analyzeText(content, rules, maxProblems, naming, useAST) {
     // commentRanges and ignoredRanges will be filled if AST parsing succeeds
     let commentRanges = [];
     let ignoredRanges = [];
+    // Theo dõi các identifier bị thiếu kiểu để cảnh báo khi được sử dụng ở các dòng sau
+    const missingTypeIdentifiers = new Set();
+    // Theo dõi các identifier đã được khai báo (có type)
+    const declaredIdentifiers = new Set();
+    // store declaration positions for better diagnostics
+    const declaredIdentifierPositions = new Map();
+    // identifiers used (populated when AST available)
+    const usedIdentifiers = new Set();
+    // detailed declared declarations with scope info
+    const declaredDeclarations = [];
     if (useAST) {
         try {
             // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -118,12 +130,82 @@ function analyzeText(content, rules, maxProblems, naming, useAST) {
                             try {
                                 if (c.type === "identifier" ||
                                     String(c.type).toLowerCase() === "identifier") {
-                                    declaredIdentifiers.add(content.slice(c.startIndex, c.endIndex));
+                                    const name = content.slice(c.startIndex, c.endIndex);
+                                    declaredIdentifiers.add(name);
+                                    // determine scope node: nearest enclosing function/contract/block
+                                    const scopeTypes = new Set([
+                                        "function_definition",
+                                        "function_declaration",
+                                        "contract_definition",
+                                        "block",
+                                        "if_statement",
+                                        "for_statement",
+                                        "while_statement",
+                                    ]);
+                                    let scopeNode = node;
+                                    try {
+                                        let cur = c.parent;
+                                        while (cur && !scopeTypes.has(String(cur.type))) {
+                                            cur = cur.parent;
+                                        }
+                                        scopeNode = cur || tree.rootNode;
+                                    }
+                                    catch (_) {
+                                        scopeNode = tree.rootNode;
+                                    }
+                                    declaredIdentifierPositions.set(name, {
+                                        startIndex: c.startIndex,
+                                        endIndex: c.endIndex,
+                                        startPosition: c.startPosition,
+                                    });
+                                    declaredDeclarations.push({
+                                        name,
+                                        declNode: c,
+                                        scopeNode,
+                                        startIndex: c.startIndex,
+                                        startPosition: c.startPosition,
+                                        scopeType: String(scopeNode.type),
+                                    });
                                 }
                                 else if (c.namedChildren && c.namedChildren.length > 0) {
                                     for (const cc of c.namedChildren) {
                                         if (cc.type === "identifier") {
-                                            declaredIdentifiers.add(content.slice(cc.startIndex, cc.endIndex));
+                                            const name = content.slice(cc.startIndex, cc.endIndex);
+                                            declaredIdentifiers.add(name);
+                                            // find scope node
+                                            const scopeTypes2 = new Set([
+                                                "function_definition",
+                                                "function_declaration",
+                                                "contract_definition",
+                                                "block",
+                                                "if_statement",
+                                                "for_statement",
+                                                "while_statement",
+                                            ]);
+                                            let scopeNode2 = node;
+                                            try {
+                                                let cur2 = cc.parent;
+                                                while (cur2 && !scopeTypes2.has(String(cur2.type))) {
+                                                    cur2 = cur2.parent;
+                                                }
+                                                scopeNode2 = cur2 || tree.rootNode;
+                                            }
+                                            catch (_) {
+                                                scopeNode2 = tree.rootNode;
+                                            }
+                                            declaredIdentifierPositions.set(name, {
+                                                startIndex: cc.startIndex,
+                                                endIndex: cc.endIndex,
+                                                startPosition: cc.startPosition,
+                                            });
+                                            declaredDeclarations.push({
+                                                name,
+                                                declNode: cc,
+                                                scopeNode: scopeNode2,
+                                                startIndex: cc.startIndex,
+                                                startPosition: cc.startPosition,
+                                                scopeType: String(scopeNode2.type),
+                                            });
                                         }
                                     }
                                 }
@@ -138,7 +220,34 @@ function analyzeText(content, rules, maxProblems, naming, useAST) {
                         const kids = node.namedChildren || node.children || [];
                         for (const c of kids) {
                             if (c.type === "identifier") {
-                                declaredIdentifiers.add(content.slice(c.startIndex, c.endIndex));
+                                const name = content.slice(c.startIndex, c.endIndex);
+                                declaredIdentifiers.add(name);
+                                // parameter scope -> enclosing function
+                                let scopeNodeP = tree.rootNode;
+                                try {
+                                    let curP = c.parent;
+                                    while (curP &&
+                                        !/function_definition|function_declaration/i.test(String(curP.type))) {
+                                        curP = curP.parent;
+                                    }
+                                    scopeNodeP = curP || tree.rootNode;
+                                }
+                                catch (_) {
+                                    scopeNodeP = tree.rootNode;
+                                }
+                                declaredIdentifierPositions.set(name, {
+                                    startIndex: c.startIndex,
+                                    endIndex: c.endIndex,
+                                    startPosition: c.startPosition,
+                                });
+                                declaredDeclarations.push({
+                                    name,
+                                    declNode: c,
+                                    scopeNode: scopeNodeP,
+                                    startIndex: c.startIndex,
+                                    startPosition: c.startPosition,
+                                    scopeType: String(scopeNodeP.type),
+                                });
                             }
                         }
                     }
@@ -148,7 +257,38 @@ function analyzeText(content, rules, maxProblems, naming, useAST) {
                         const kids = node.namedChildren || node.children || [];
                         for (const c of kids) {
                             if (c.type === "identifier") {
-                                declaredIdentifiers.add(content.slice(c.startIndex, c.endIndex));
+                                const name = content.slice(c.startIndex, c.endIndex);
+                                declaredIdentifiers.add(name);
+                                declaredIdentifierPositions.set(name, {
+                                    startIndex: c.startIndex,
+                                    endIndex: c.endIndex,
+                                    startPosition: c.startPosition,
+                                });
+                                // scope -> nearest enclosing function/block
+                                let scopeNodeV = tree.rootNode;
+                                try {
+                                    let curV = c.parent;
+                                    const scopeTypesV = new Set([
+                                        "function_definition",
+                                        "function_declaration",
+                                        "block",
+                                    ]);
+                                    while (curV && !scopeTypesV.has(String(curV.type))) {
+                                        curV = curV.parent;
+                                    }
+                                    scopeNodeV = curV || tree.rootNode;
+                                }
+                                catch (_) {
+                                    scopeNodeV = tree.rootNode;
+                                }
+                                declaredDeclarations.push({
+                                    name,
+                                    declNode: c,
+                                    scopeNode: scopeNodeV,
+                                    startIndex: c.startIndex,
+                                    startPosition: c.startPosition,
+                                    scopeType: String(scopeNodeV.type),
+                                });
                             }
                         }
                     }
@@ -173,10 +313,6 @@ function analyzeText(content, rules, maxProblems, naming, useAST) {
     // Split into lines after comments have been removed (from AST or fallback)
     const lines = contentNoComments.split(/\r?\n/);
     const reportedKeys = new Set();
-    // Theo dõi các identifier bị thiếu kiểu để cảnh báo khi được sử dụng ở các dòng sau
-    const missingTypeIdentifiers = new Set();
-    // Theo dõi các identifier đã được khai báo (có type)
-    const declaredIdentifiers = new Set();
     // Hàm helper để thêm finding vào danh sách
     const pushFinding = (lineIndex, start, end, message, code, severity) => {
         if (findings.length >= maxProblems) {
@@ -275,6 +411,122 @@ function analyzeText(content, rules, maxProblems, naming, useAST) {
         }
         catch (e) {
             // ignore
+        }
+    }
+    // If AST present, perform scope-aware unused-declaration detection
+    if (tree) {
+        try {
+            const findUsageInScope = (scopeNode, name, declStartIdx) => {
+                let found = false;
+                const walk = (n) => {
+                    if (!n || found)
+                        return;
+                    if (String(n.type) === "identifier") {
+                        try {
+                            const nm = content.slice(n.startIndex, n.endIndex);
+                            if (nm === name && n.startIndex !== declStartIdx) {
+                                found = true;
+                                return;
+                            }
+                        }
+                        catch (_) { }
+                    }
+                    const kids = n.namedChildren || n.children || [];
+                    for (const c of kids) {
+                        if (found)
+                            break;
+                        walk(c);
+                    }
+                };
+                walk(scopeNode);
+                return found;
+            };
+            for (const decl of declaredDeclarations) {
+                // Skip intentionally ignored names
+                if (decl.name.startsWith("_"))
+                    continue;
+                const used = findUsageInScope(decl.scopeNode, decl.name, decl.declNode.startIndex);
+                if (!used) {
+                    // report at declaration
+                    let lineNum = 0;
+                    let colNum = 0;
+                    if (decl.startPosition &&
+                        typeof decl.startPosition.row === "number") {
+                        lineNum = decl.startPosition.row;
+                        colNum = decl.startPosition.column;
+                    }
+                    else {
+                        const before = content.slice(0, decl.startIndex).split(/\r?\n/);
+                        lineNum = before.length - 1;
+                        colNum = before[before.length - 1].length;
+                    }
+                    pushFinding(lineNum, colNum, colNum + decl.name.length, `Declared variable '${decl.name}' is never used.`, "UNUSED_VARIABLE", vscode.DiagnosticSeverity.Warning);
+                }
+            }
+        }
+        catch (e) {
+            // ignore
+        }
+    }
+    // If AST present, collect identifier usages and report unused declared variables
+    if (tree) {
+        try {
+            const declParentTypes = new Set([
+                "variable_declaration",
+                "state_variable_declaration",
+                "parameter",
+                "parameter_list",
+                "function_definition",
+                "function_declaration",
+                "variable_declaration_statement",
+            ]);
+            const collectUsages = (node) => {
+                if (!node)
+                    return;
+                if (String(node.type) === "identifier") {
+                    const parent = node.parent;
+                    const ptype = parent ? String(parent.type) : "";
+                    const name = content.slice(node.startIndex, node.endIndex);
+                    if (!declParentTypes.has(ptype)) {
+                        usedIdentifiers.add(name);
+                    }
+                }
+                const kids = node.namedChildren || node.children || [];
+                for (const c of kids)
+                    collectUsages(c);
+            };
+            if (tree && tree.rootNode)
+                collectUsages(tree.rootNode);
+            // Now compare declaredIdentifiers against usedIdentifiers and warn about unused
+            for (const name of declaredIdentifiers) {
+                if (!usedIdentifiers.has(name)) {
+                    const posInfo = declaredIdentifierPositions.get(name);
+                    if (!posInfo)
+                        continue;
+                    // Skip state variables by default (they may be read externally)
+                    if (posInfo.scope === "state")
+                        continue;
+                    // Skip intentionally-ignored names like those starting with '_'
+                    if (name.startsWith("_"))
+                        continue;
+                    let lineNum = 0;
+                    let colNum = 0;
+                    if (posInfo.startPosition &&
+                        typeof posInfo.startPosition.row === "number") {
+                        lineNum = posInfo.startPosition.row;
+                        colNum = posInfo.startPosition.column;
+                    }
+                    else {
+                        const before = content.slice(0, posInfo.startIndex).split(/\r?\n/);
+                        lineNum = before.length - 1;
+                        colNum = before[before.length - 1].length;
+                    }
+                    pushFinding(lineNum, colNum, colNum + name.length, `Declared variable '${name}' is never used.`, "UNUSED_VARIABLE", vscode.DiagnosticSeverity.Warning);
+                }
+            }
+        }
+        catch (e) {
+            // ignore AST usage collection errors
         }
     }
     // =============================================================================
