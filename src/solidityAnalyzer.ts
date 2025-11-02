@@ -732,6 +732,30 @@ export function analyzeText(
         // candidate detection
         const funcCallRx =
           /(^|\s)([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)(?:\s+)([A-Za-z_0-9`"'\[\{])/g;
+        // Modifiers/visibility keywords to ignore when matched as 'identifier'
+        const modifierKeywords = new Set([
+          "public",
+          "private",
+          "internal",
+          "external",
+          "view",
+          "pure",
+          "payable",
+          "constant",
+          "immutable",
+          "memory",
+          "storage",
+          "calldata",
+        ]);
+        const reservedNames = new Set([
+          "return",
+          "emit",
+          "require",
+          "assert",
+          "revert",
+          "break",
+          "continue",
+        ]);
         let m: RegExpExecArray | null;
         while ((m = funcCallRx.exec(line)) !== null) {
           const full = m[0];
@@ -745,6 +769,13 @@ export function analyzeText(
           if (nextParen >= 0 && (nextSemi === -1 || nextParen < nextSemi)) {
             continue; // has parentheses — OK
           }
+          // If the candidate name is a modifier/visibility keyword, skip it
+          if (modifierKeywords.has(name.toLowerCase())) continue;
+          // Skip reserved names
+          if (reservedNames.has(name.toLowerCase())) continue;
+          // If there's a ')' before this name in the same line, it's likely part of a function declaration (e.g., receive() external)
+          const prefix = line.slice(0, nameIdx);
+          if (prefix.indexOf(")") !== -1) continue;
           // Basic exclusions: if this is likely a type or mapping annotation, skip
           if (
             /^(uint|int|address|bool|string|bytes|mapping)\b/i.test(line.trim())
