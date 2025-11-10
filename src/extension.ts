@@ -142,7 +142,18 @@ function runAnalysis(document: vscode.TextDocument) {
     )!,
   };
   const useAST = config.get<boolean>("useASTAnalyzer", true);
-  const findings = analyzeText(text, rules, maxProblems, naming, useAST);
+  const payableNameHeuristic = config.get<boolean>(
+    "payableNameHeuristic",
+    true
+  );
+  const payableNamePattern = config.get<string>(
+    "payableNamePattern",
+    "deposit|buy|mint|stake|fund|contribute|donate|tip|payIn|addLiquidity"
+  )!;
+  const findings = analyzeText(text, rules, maxProblems, naming, useAST, {
+    enabled: payableNameHeuristic,
+    pattern: payableNamePattern,
+  });
   // Chuyển các kết quả (findings) thành Diagnostic để VS Code hiển thị
   const diagnostics: vscode.Diagnostic[] = findings.map((f) => {
     const range = new vscode.Range(
