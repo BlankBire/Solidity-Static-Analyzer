@@ -45,7 +45,7 @@ const vscode = __importStar(require("vscode"));
  * @param maxProblems Giới hạn số lượng lỗi tối đa
  * @returns Danh sách các findings (lỗi/cảnh báo)
  */
-function analyzeText(content, rules, maxProblems, naming, useAST) {
+function analyzeText(content, rules, maxProblems, naming, useAST, payableHeuristic) {
     const findings = [];
     // Reported keys to deduplicate diagnostics
     // (moved declarations earlier to enable AST traversal to populate them)
@@ -527,6 +527,141 @@ function analyzeText(content, rules, maxProblems, naming, useAST) {
         }
         catch (e) {
             // ignore AST usage collection errors
+        }
+    }
+    // AST-based MISSING_PAYABLE detection (more accurate than line heuristic)
+    if (tree && rules.missingPayable) {
+        try {
+            const root = tree.rootNode;
+            const walkFunctions = (node) => {
+                if (!node)
+                    return;
+                const t = String(node.type);
+                const isStdFunction = t === "function_definition" || t === "function_declaration";
+                const isReceiveNode = t === "receive_function_definition"; // tree-sitter special node
+                const isFallbackNode = t === "fallback_function_definition"; // tree-sitter special node
+                if (isStdFunction || isReceiveNode || isFallbackNode) {
+                    const bodyNode = (node.namedChildren || node.children || []).find((c) => String(c.type) === "function_body" || String(c.type) === "block");
+                    const headerStart = node.startIndex;
+                    const headerEnd = bodyNode ? bodyNode.startIndex : node.endIndex;
+                    // Slice header (excluding body) for modifier checks
+                    const headerText = content.slice(headerStart, headerEnd);
+                    const hasPayable = /\bpayable\b/.test(headerText);
+                    // For explicit node types we treat as receive/fallback even if pattern not found (robust to formatting)
+                    const isReceive = isReceiveNode || /\breceive\s*\(/.test(headerText);
+                    const isFallback = isFallbackNode || /\bfallback\s*\(/.test(headerText);
+                    const isConstructor = /\bconstructor\s*\(/.test(headerText);
+                    let usesMsgValue = false;
+                    if (bodyNode) {
+                        const bodyText = content.slice(bodyNode.startIndex, bodyNode.endIndex);
+                        usesMsgValue = /\bmsg\s*\.\s*value\b/.test(bodyText);
+                    }
+                    // Escalate severity for receive(): must be external payable by spec.
+                    const shouldWarn = !hasPayable &&
+                        (isReceive || usesMsgValue || (isConstructor && usesMsgValue));
+                    if (shouldWarn) {
+                        let hlStart = headerStart;
+                        let hlLen = 8;
+                        const tryMark = (kw) => {
+                            const m = headerText.match(new RegExp(`\\b${kw}\\b`));
+                            if (m && m.index !== undefined) {
+                                hlStart = headerStart + m.index;
+                                hlLen = m[0].length;
+                            }
+                        };
+                        if (isReceive)
+                            tryMark("receive");
+                        else if (isFallback)
+                            tryMark("fallback");
+                        else if (isConstructor)
+                            tryMark("constructor");
+                        else {
+                            const fm = headerText.match(/\bfunction\b\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/);
+                            if (fm && fm.index !== undefined) {
+                                const name = fm[1];
+                                const nameIdx = headerText.indexOf(name, fm.index);
+                                if (nameIdx >= 0) {
+                                    hlStart = headerStart + nameIdx;
+                                    hlLen = name.length;
+                                }
+                            }
+                        }
+                        const before = content.slice(0, hlStart).split(/\r?\n/);
+                        const line = before.length - 1;
+                        const col = before[before.length - 1].length;
+                        const severity = isReceive
+                            ? vscode.DiagnosticSeverity.Error
+                            : vscode.DiagnosticSeverity.Error; // escalate all confirmed Ether-receiving paths to Error
+                        const message = isReceive
+                            ? "'receive' function must be marked payable to accept ETH."
+                            : isFallback
+                                ? "'fallback' function receiving Ether must be payable."
+                                : isConstructor && usesMsgValue
+                                    ? "Constructor receiving Ether must be payable."
+                                    : "Function receiving Ether (reads msg.value) must be payable.";
+                        pushFinding(line, col, col + hlLen, message, "MISSING_PAYABLE", severity);
+                    }
+                }
+                const kids = node.namedChildren || node.children || [];
+                for (const c of kids)
+                    walkFunctions(c);
+            };
+            if (root)
+                walkFunctions(root);
+        }
+        catch (e) {
+            // ignore AST payable detection errors
+        }
+    }
+    // Heuristic: function name suggests accepting Ether (only if not already flagged)
+    if (tree && rules.missingPayable && payableHeuristic?.enabled) {
+        try {
+            const pattern = new RegExp(`^(?:${payableHeuristic.pattern})$`, "i");
+            const flaggedKeySet = new Set(findings
+                .filter((f) => f.code === "MISSING_PAYABLE")
+                .map((f) => `${f.range.start.line}:${f.range.start.character}`));
+            const root = tree.rootNode;
+            const walk = (node) => {
+                if (!node)
+                    return;
+                const t = String(node.type);
+                if (t === "function_definition" || t === "function_declaration") {
+                    const bodyNode = (node.namedChildren || node.children || []).find((c) => String(c.type) === "function_body" || String(c.type) === "block");
+                    const headerStart = node.startIndex;
+                    const headerEnd = bodyNode ? bodyNode.startIndex : node.endIndex;
+                    const headerText = content.slice(headerStart, headerEnd);
+                    const hasPayable = /\bpayable\b/.test(headerText);
+                    const isViewOrPure = /\b(view|pure)\b/.test(headerText);
+                    if (!hasPayable && !isViewOrPure) {
+                        const nameMatch = headerText.match(/\bfunction\b\s+([A-Za-z_][A-Za-z0-9_]*)/);
+                        if (nameMatch && nameMatch[1]) {
+                            const fname = nameMatch[1];
+                            if (pattern.test(fname)) {
+                                // compute location for highlighting name
+                                const nameIdx = headerText.indexOf(fname, nameMatch.index);
+                                if (nameIdx >= 0) {
+                                    const absStart = headerStart + nameIdx;
+                                    const before = content.slice(0, absStart).split(/\r?\n/);
+                                    const line = before.length - 1;
+                                    const col = before[before.length - 1].length;
+                                    const key = `${line}:${col}`;
+                                    if (!flaggedKeySet.has(key)) {
+                                        pushFinding(line, col, col + fname.length, "Function name suggests it should accept Ether; consider adding 'payable'.", "MISSING_PAYABLE", vscode.DiagnosticSeverity.Warning);
+                                        flaggedKeySet.add(key);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                const kids = node.namedChildren || node.children || [];
+                for (const c of kids)
+                    walk(c);
+            };
+            walk(root);
+        }
+        catch (e) {
+            // ignore heuristic errors
         }
     }
     // =============================================================================
@@ -1264,8 +1399,20 @@ function analyzeText(content, rules, maxProblems, naming, useAST) {
                 }
             }
         }
-        // 10. MISSING_PAYABLE - Kiểm tra thiếu payable modifier cho function nhận ETH
+        // 10. MISSING_PAYABLE - Kiểm tra thiếu payable modifier
+        // 10.a receive(): luôn phải payable – báo lỗi đỏ cả khi có AST (fallback chắc chắn)
         if (rules.missingPayable) {
+            const noComment = stripInlineComments(line);
+            const isReceiveDecl = /\breceive\s*\(\s*\)/i.test(noComment);
+            if (isReceiveDecl && !/\bpayable\b/i.test(noComment)) {
+                const idx = noComment.search(/\breceive\b/i);
+                if (idx >= 0) {
+                    pushFinding(i, idx, idx + "receive".length, "'receive' function must be marked payable to accept ETH.", "MISSING_PAYABLE", vscode.DiagnosticSeverity.Error);
+                }
+            }
+        }
+        // 10.b Heuristic cho các hàm thường (chỉ chạy khi không có AST để tránh nhiễu)
+        if (rules.missingPayable && !tree) {
             // Kiểm tra function có thể nhận ETH nhưng thiếu payable
             const functionPattern = /\bfunction\s+\w+\s*\([^)]*\)\s*(public|private|internal|external)?\s*(pure|view)?\s*(?!payable)/i;
             const hasValueTransfer = /\.transfer\(|\.send\(|\.call\{.*value/i;
