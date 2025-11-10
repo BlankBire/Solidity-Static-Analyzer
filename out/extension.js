@@ -148,7 +148,12 @@ function runAnalysis(document) {
         contractPattern: config.get("naming.contractPattern", "^[A-Za-z_][A-Za-z0-9_]*$"),
     };
     const useAST = config.get("useASTAnalyzer", true);
-    const findings = (0, solidityAnalyzer_1.analyzeText)(text, rules, maxProblems, naming, useAST);
+    const payableNameHeuristic = config.get("payableNameHeuristic", true);
+    const payableNamePattern = config.get("payableNamePattern", "deposit|buy|mint|stake|fund|contribute|donate|tip|payIn|addLiquidity");
+    const findings = (0, solidityAnalyzer_1.analyzeText)(text, rules, maxProblems, naming, useAST, {
+        enabled: payableNameHeuristic,
+        pattern: payableNamePattern,
+    });
     // Chuyển các kết quả (findings) thành Diagnostic để VS Code hiển thị
     const diagnostics = findings.map((f) => {
         const range = new vscode.Range(new vscode.Position(f.range.start.line, f.range.start.character), new vscode.Position(f.range.end.line, f.range.end.character));
