@@ -129,6 +129,16 @@
           "type": "boolean",
           "default": true,
           "description": "Use AST-based analyzer instead of regex-based analyzer for more accurate analysis."
+        },
+        "solidityStaticAnalyzer.payableNameHeuristic": {
+          "type": "boolean",
+          "default": true,
+          "description": "Heuristically suggest 'payable' for nonpayable functions whose names imply accepting Ether (e.g., deposit, buy)."
+        },
+        "solidityStaticAnalyzer.payableNamePattern": {
+          "type": "string",
+          "default": "deposit|buy|mint|stake|fund|contribute|donate|tip|payIn|addLiquidity",
+          "description": "Regex pattern (case-insensitive) matched against function names to suggest 'payable' when nonpayable (used only if payableNameHeuristic is true)."
         }
       }
     }
