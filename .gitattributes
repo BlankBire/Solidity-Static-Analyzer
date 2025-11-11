@@ -24,11 +24,11 @@
 *.css linguist-detectable=true
 
 # Config files
-*.json linguist-detectable=true
-*.yml linguist-detectable=true
-*.yaml linguist-detectable=true
-*.xml linguist-detectable=true
-*.conf linguist-detectable=true
+# *.json linguist-detectable=true
+# *.yml linguist-detectable=true
+# *.yaml linguist-detectable=true
+# *.xml linguist-detectable=true
+# *.conf linguist-detectable=true
 
 # Scripts
 *.sh linguist-detectable=true
