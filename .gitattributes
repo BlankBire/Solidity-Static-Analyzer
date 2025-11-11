@@ -1,4 +1,47 @@
-*.js linguist-generated=false
-out/* linguist-generated=false
-*.sol linguist-generated=false
-test/* linguist-generated=false
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Documentation
+*.md linguist-detectable=true
+*.pdf linguist-detectable=true
+*.doc* linguist-detectable=true
+*.ppt* linguist-detectable=true
+*.xls* linguist-detectable=true
+*.txt linguist-detectable=true
+
+# Source code
+*.py linguist-detectable=true
+*.java linguist-detectable=true
+*.cpp linguist-detectable=true
+*.c linguist-detectable=true
+*.h linguist-detectable=true
+*.cs linguist-detectable=true
+*.js linguist-detectable=true
+*.jsx linguist-detectable=true
+*.ts linguist-detectable=true
+*.tsx linguist-detectable=true
+*.html linguist-detectable=true
+*.css linguist-detectable=true
+
+# Config files
+*.json linguist-detectable=true
+*.yml linguist-detectable=true
+*.yaml linguist-detectable=true
+*.xml linguist-detectable=true
+*.conf linguist-detectable=true
+
+# Scripts
+*.sh linguist-detectable=true
+*.bat linguist-detectable=true
+*.ps1 linguist-detectable=true
+
+# Images (optional)
+*.png linguist-detectable=true
+*.jpg linguist-detectable=true
+*.gif linguist-detectable=true
+
+# Docker
+Dockerfile linguist-detectable=true
+*.dockerfile linguist-detectable=true
+docker-compose*.yml linguist-detectable=true
+docker-compose*.yaml linguist-detectable=true
