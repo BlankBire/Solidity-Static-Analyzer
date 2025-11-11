@@ -147,7 +147,15 @@
     "compile": "tsc -p .",
     "watch": "tsc -w -p .",
     "lint": "echo 'No linter configured'",
-    "prepublishOnly": "npm run compile"
+    "prepublishOnly": "npm run compile",
+    "dev:unusedVariables": "node scripts/runUnusedVariablesDemo.js",
+    "dev:txOrigin": "node scripts/runTxOriginDemo.js",
+    "dev:selfdestruct": "node scripts/runSelfdestructDemo.js",
+    "dev:delegatecall": "node scripts/runDelegatecallDemo.js",
+    "dev:lowLevelCall": "node scripts/runLowLevelCallDemo.js",
+    "dev:missingPayable": "node scripts/runMissingPayableDemo.js",
+    "dev:namingSyntax": "node scripts/runNamingAndSyntaxDemo.js",
+    "dev:dumpAstJson": "node scripts/dumpAstJson.js"
   },
   "devDependencies": {
     "@types/node": "^20.10.5",
