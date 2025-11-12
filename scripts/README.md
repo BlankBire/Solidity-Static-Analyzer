@@ -18,7 +18,7 @@ Các script trong thư mục này giúp bạn phát triển và kiểm thử nha
 - `runLowLevelCallDemo.js`
 - `runMissingPayableDemo.js`
 - `runNamingAndSyntaxDemo.js` (gồm: missing semicolon, missing parentheses, naming, missing data type, v.v.)
-- `runLicenseAndVersion.js`
+- `runPragmaDemo.js`
 
 ### AST helpers
 
@@ -43,7 +43,7 @@ npm run dev:delegatecall
 npm run dev:lowLevelCall
 npm run dev:missingPayable
 npm run dev:namingSyntax
-npm run dev:licenseVersion
+npm run dev:pragma
 ```
 
 ### Tạo / cập nhật astDump.json
