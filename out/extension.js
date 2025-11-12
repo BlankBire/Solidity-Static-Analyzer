@@ -138,6 +138,9 @@ function runAnalysis(document) {
         functionNaming: config.get("rules.functionNaming", true),
         variableNaming: config.get("rules.variableNaming", true),
         contractNaming: config.get("rules.contractNaming", true),
+        // Pragma rules
+        missingLicense: config.get("rules.missingLicense", true),
+        missingVersion: config.get("rules.missingVersion", true),
     };
     // Gọi bộ phân tích cốt lõi với nội dung tài liệu
     const text = document.getText();

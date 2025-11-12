@@ -333,6 +333,47 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
             },
         });
     };
+    // =============================================================================
+    // PRAGMA RULES - Kiểm tra license và version
+    // =============================================================================
+    // Kiểm tra license (SPDX-License-Identifier) - sử dụng content gốc vì license là comment
+    if (rules.missingLicense) {
+        const originalLines = content.split(/\r?\n/);
+        let hasLicense = false;
+        // Kiểm tra trong 10 dòng đầu (license thường ở đầu file)
+        for (let i = 0; i < Math.min(10, originalLines.length); i++) {
+            const line = originalLines[i].trim();
+            // Kiểm tra SPDX license identifier (có thể là // hoặc /* */)
+            if (/^\/\/\s*SPDX-License-Identifier\s*:/.test(line) ||
+                /^\/\*\s*SPDX-License-Identifier\s*:/.test(line)) {
+                hasLicense = true;
+                break;
+            }
+        }
+        if (!hasLicense) {
+            pushFinding(0, 0, 1, "Missing SPDX-License-Identifier. Add a license identifier at the top of the file (e.g., // SPDX-License-Identifier: MIT).", "MISSING_LICENSE", vscode.DiagnosticSeverity.Warning);
+        }
+    }
+    // Kiểm tra version (pragma solidity) - sử dụng content gốc
+    if (rules.missingVersion) {
+        const originalLines = content.split(/\r?\n/);
+        let hasVersion = false;
+        let versionLineIndex = -1;
+        // Kiểm tra trong 20 dòng đầu (pragma thường ở đầu file)
+        for (let i = 0; i < Math.min(20, originalLines.length); i++) {
+            const line = originalLines[i];
+            // Kiểm tra pragma solidity (bỏ qua comment)
+            const noCommentLine = line.split("//")[0].trim();
+            if (/^pragma\s+solidity\s+/.test(noCommentLine)) {
+                hasVersion = true;
+                versionLineIndex = i;
+                break;
+            }
+        }
+        if (!hasVersion) {
+            pushFinding(0, 0, 1, "Missing pragma solidity version. Add a version declaration at the top of the file (e.g., pragma solidity ^0.8.0;).", "MISSING_VERSION", vscode.DiagnosticSeverity.Warning);
+        }
+    }
     // Nếu AST đã parse thành công phía trên, dùng lại tree để kiểm tra 'missingReturn' chính xác hơn.
     if (tree) {
         try {
