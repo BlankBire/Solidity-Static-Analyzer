@@ -155,7 +155,8 @@
     "dev:lowLevelCall": "node scripts/runLowLevelCallDemo.js",
     "dev:missingPayable": "node scripts/runMissingPayableDemo.js",
     "dev:namingSyntax": "node scripts/runNamingAndSyntaxDemo.js",
-    "dev:dumpAstJson": "node scripts/dumpAstJson.js"
+    "dev:dumpAstJson": "node scripts/dumpAstJson.js",
+    "dev:licenseVersion": "node scripts/runLicenseAndVersion.js"
   },
   "devDependencies": {
     "@types/node": "^20.10.5",
