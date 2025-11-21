@@ -4,8 +4,9 @@ Solidify is a Visual Studio Code extension that surfaces static-analysis diagnos
 
 ## Feature Highlights
 
-- **Security heuristics**: Guards against high-impact pitfalls such as `tx.origin`, unsafe `delegatecall`, `selfdestruct`, and low-level value transfers.
-- **Syntax & quality rules**: Spots missing semicolons/braces, deprecated keywords, unreachable returns, missing `payable`, unused variables, and more.
+- **Security heuristics**: Guards against high-impact pitfalls such as `tx.origin`, unsafe `delegatecall`, `selfdestruct`, low-level value transfers, and risky address downcasts.
+- **Syntax & quality rules**: Spots missing semicolons/braces, deprecated keywords, unreachable returns, missing `payable`, unused variables, and missing visibility specifiers.
+- **Semantic safeguards**: Alerts on `uint32(msg.sender)`-style casts and legacy `this.balance`, recommending safer Solidity 0.8+ patterns.
 - **Real-time experience**: Automatically re-analyzes whenever a `.sol` document opens, changes, or saves.
 - **Modular rule engine**: Rules in `src/rules/` are isolated, making it easy to extend or tune individual checks.
 
@@ -35,12 +36,12 @@ Solidify is a Visual Studio Code extension that surfaces static-analysis diagnos
 
 ## Configuration Options
 
-| Setting                                              | Type    | Description                                                                                                                                                             |
-| ---------------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `solidityStaticAnalyzer.enable`                      | boolean | Master toggle for the extension.                                                                                                                                        |
-| `solidityStaticAnalyzer.maxProblems`                 | number  | Per-file diagnostic cap (default: 100).                                                                                                                                 |
-| `solidityStaticAnalyzer.rules.txOrigin` etc.         | boolean | Enable/disable individual security rules (`txOrigin`, `selfdestruct`, `delegatecall`, `lowLevelCallValue`).                                                             |
-| `solidityStaticAnalyzer.rules.missingSemicolon` etc. | boolean | Enable/disable syntax & quality rules (`missingParentheses`, `missingBraces`, `missingReturn`, `wrongKeywords`, `missingDataType`, `missingPayable`, `unusedVariable`). |
+| Setting                                              | Type    | Description                                                                                                                                                                                                                                |
+| ---------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `solidityStaticAnalyzer.enable`                      | boolean | Master toggle for the extension.                                                                                                                                                                                                           |
+| `solidityStaticAnalyzer.maxProblems`                 | number  | Per-file diagnostic cap (default: 100).                                                                                                                                                                                                    |
+| `solidityStaticAnalyzer.rules.txOrigin` etc.         | boolean | Enable/disable individual security rules (`txOrigin`, `selfdestruct`, `delegatecall`, `lowLevelCallValue`).                                                                                                                                |
+| `solidityStaticAnalyzer.rules.missingSemicolon` etc. | boolean | Enable/disable syntax & quality rules (`missingParentheses`, `missingBraces`, `missingReturn`, `wrongKeywords`, `missingDataType`, `missingPayable`, `missingVisibility`, `unsafeAddressCast`, `deprecatedThisBalance`, `unusedVariable`). |
 
 ## Architecture Snapshot
 

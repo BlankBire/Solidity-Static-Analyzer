@@ -321,6 +321,18 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
         }
         catch { }
     }
+    // Semantic AST-based rules (visibility, casts, deprecated patterns)
+    if (tree) {
+        try {
+            const { runSemanticRulesAst } = require("./rules/semantic");
+            runSemanticRulesAst(content, tree, {
+                missingVisibility: !!rules.missingVisibility,
+                unsafeAddressCast: !!rules.unsafeAddressCast,
+                deprecatedThisBalance: !!rules.deprecatedThisBalance,
+            }, pushFinding);
+        }
+        catch { }
+    }
     // Global parentheses analysis (AST-assisted + character-level)
     if (rules.missingParentheses) {
         try {

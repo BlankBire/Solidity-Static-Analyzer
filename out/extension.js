@@ -138,6 +138,10 @@ function runAnalysis(document) {
         functionNaming: config.get("rules.functionNaming", true),
         variableNaming: config.get("rules.variableNaming", true),
         contractNaming: config.get("rules.contractNaming", true),
+        // Semantic rules
+        missingVisibility: config.get("rules.missingVisibility", true),
+        unsafeAddressCast: config.get("rules.unsafeAddressCast", true),
+        deprecatedThisBalance: config.get("rules.deprecatedThisBalance", true),
         // Pragma rules
         missingLicense: config.get("rules.missingLicense", true),
         missingVersion: config.get("rules.missingVersion", true),

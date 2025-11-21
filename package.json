@@ -85,6 +85,21 @@
           "default": true,
           "description": "Detect missing payable modifier for ETH handling functions."
         },
+        "solidityStaticAnalyzer.rules.missingVisibility": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when functions omit explicit visibility (public/external/internal/private)."
+        },
+        "solidityStaticAnalyzer.rules.unsafeAddressCast": {
+          "type": "boolean",
+          "default": true,
+          "description": "Flag explicit casts from addresses to undersized integer types (e.g., uint32(msg.sender))."
+        },
+        "solidityStaticAnalyzer.rules.deprecatedThisBalance": {
+          "type": "boolean",
+          "default": true,
+          "description": "Flag usage of this.balance; recommend address(this).balance instead."
+        },
         "solidityStaticAnalyzer.rules.functionNaming": {
           "type": "boolean",
           "default": true,
