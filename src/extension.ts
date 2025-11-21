@@ -119,6 +119,13 @@ function runAnalysis(document: vscode.TextDocument) {
     functionNaming: config.get<boolean>("rules.functionNaming", true),
     variableNaming: config.get<boolean>("rules.variableNaming", true),
     contractNaming: config.get<boolean>("rules.contractNaming", true),
+    // Semantic rules
+    missingVisibility: config.get<boolean>("rules.missingVisibility", true),
+    unsafeAddressCast: config.get<boolean>("rules.unsafeAddressCast", true),
+    deprecatedThisBalance: config.get<boolean>(
+      "rules.deprecatedThisBalance",
+      true
+    ),
     // Pragma rules
     missingLicense: config.get<boolean>("rules.missingLicense", true),
     missingVersion: config.get<boolean>("rules.missingVersion", true),

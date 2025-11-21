@@ -30,6 +30,10 @@ export type AnalyzerRules = {
   functionNaming: boolean;
   variableNaming: boolean;
   contractNaming: boolean;
+  // Semantic Rules
+  missingVisibility: boolean;
+  unsafeAddressCast: boolean;
+  deprecatedThisBalance: boolean;
   // Pragma Rules - Cảnh báo thiếu license hoặc version
   missingLicense: boolean;
   missingVersion: boolean;
@@ -397,6 +401,23 @@ export function analyzeText(
     try {
       const { runMissingReturnAst } = require("./rules/syntax");
       runMissingReturnAst(content, tree, pushFinding);
+    } catch {}
+  }
+
+  // Semantic AST-based rules (visibility, casts, deprecated patterns)
+  if (tree) {
+    try {
+      const { runSemanticRulesAst } = require("./rules/semantic");
+      runSemanticRulesAst(
+        content,
+        tree,
+        {
+          missingVisibility: !!rules.missingVisibility,
+          unsafeAddressCast: !!rules.unsafeAddressCast,
+          deprecatedThisBalance: !!rules.deprecatedThisBalance,
+        },
+        pushFinding
+      );
     } catch {}
   }
 
