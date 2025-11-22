@@ -88,6 +88,25 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
                     if (!node)
                         return;
                     const t = String(node.type).toLowerCase();
+                    if (t === "contract_declaration" ||
+                        t === "contract_definition" ||
+                        t === "interface_definition" ||
+                        t === "library_definition") {
+                        const nameNode = (node.namedChildren || []).find((child) => child.type === "identifier");
+                        if (nameNode) {
+                            const name = content
+                                .slice(nameNode.startIndex, nameNode.endIndex)
+                                .trim();
+                            if (name) {
+                                declaredIdentifiers.add(name);
+                                declaredIdentifierPositions.set(name, {
+                                    startIndex: nameNode.startIndex,
+                                    endIndex: nameNode.endIndex,
+                                    startPosition: nameNode.startPosition,
+                                });
+                            }
+                        }
+                    }
                     // state variable declarations (tree-sitter-solidity: state_variable_declaration)
                     if (t === "state_variable_declaration" ||
                         t === "variable_declaration") {
@@ -329,6 +348,8 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
                 missingVisibility: !!rules.missingVisibility,
                 unsafeAddressCast: !!rules.unsafeAddressCast,
                 deprecatedThisBalance: !!rules.deprecatedThisBalance,
+                legacyConstructor: !!rules.legacyConstructor,
+                msgSenderTransfer: !!rules.msgSenderTransfer,
             }, pushFinding);
         }
         catch { }

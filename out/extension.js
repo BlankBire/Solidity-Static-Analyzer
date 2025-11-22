@@ -142,6 +142,8 @@ function runAnalysis(document) {
         missingVisibility: config.get("rules.missingVisibility", true),
         unsafeAddressCast: config.get("rules.unsafeAddressCast", true),
         deprecatedThisBalance: config.get("rules.deprecatedThisBalance", true),
+        legacyConstructor: config.get("rules.legacyConstructor", true),
+        msgSenderTransfer: config.get("rules.msgSenderTransfer", true),
         // Pragma rules
         missingLicense: config.get("rules.missingLicense", true),
         missingVersion: config.get("rules.missingVersion", true),

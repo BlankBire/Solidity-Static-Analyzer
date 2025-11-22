@@ -59,9 +59,119 @@ const getDescendant = (node, predicate) => {
     }
     return undefined;
 };
+const getNodeText = (content, node) => {
+    if (!node)
+        return "";
+    return content.slice(node.startIndex, node.endIndex);
+};
+const unwrapExpression = (node) => {
+    let current = node;
+    while (current &&
+        current.type === "expression" &&
+        current.namedChildren &&
+        current.namedChildren.length === 1) {
+        current = current.namedChildren[0];
+    }
+    return current;
+};
 function runSemanticRulesAst(content, tree, toggles, pushFinding) {
     if (!tree?.rootNode)
         return;
+    const extractVersion = () => {
+        const pragmaRegex = /pragma\s+solidity\s+([^;]+)/gi;
+        let match;
+        let best;
+        while ((match = pragmaRegex.exec(content)) !== null) {
+            const segment = match[1] || "";
+            const versionMatch = /(\d+)\.(\d+)(?:\.(\d+))?/.exec(segment);
+            if (!versionMatch)
+                continue;
+            const major = parseInt(versionMatch[1], 10);
+            const minor = parseInt(versionMatch[2], 10);
+            const patch = versionMatch[3] ? parseInt(versionMatch[3], 10) : 0;
+            if (!best) {
+                best = { major, minor, patch };
+                continue;
+            }
+            if (major > best.major) {
+                best = { major, minor, patch };
+                continue;
+            }
+            if (major === best.major && minor > best.minor) {
+                best = { major, minor, patch };
+                continue;
+            }
+            if (major === best.major && minor === best.minor && patch > best.patch) {
+                best = { major, minor, patch };
+            }
+        }
+        return best;
+    };
+    const versionInfo = extractVersion();
+    const versionAtLeast = (v, major, minor) => {
+        if (!v)
+            return false;
+        if (v.major > major)
+            return true;
+        if (v.major < major)
+            return false;
+        if (v.minor > minor)
+            return true;
+        if (v.minor < minor)
+            return false;
+        return v.patch >= 0;
+    };
+    const collectContracts = () => {
+        const result = [];
+        const walk = (node) => {
+            if (!node)
+                return;
+            const type = String(node.type);
+            if (type === "contract_declaration" || type === "contract_definition") {
+                result.push(node);
+            }
+            for (const child of node.namedChildren || []) {
+                walk(child);
+            }
+        };
+        walk(tree.rootNode);
+        return result;
+    };
+    if (toggles.legacyConstructor) {
+        const contracts = collectContracts();
+        const enforceLegacy = versionAtLeast(versionInfo, 0, 5) ||
+            (!!versionInfo && versionInfo.major >= 1);
+        const shouldWarn = enforceLegacy || !versionInfo;
+        const severity = enforceLegacy
+            ? vscode.DiagnosticSeverity.Error
+            : vscode.DiagnosticSeverity.Warning;
+        if (shouldWarn) {
+            for (const contractNode of contracts) {
+                const contractNameNode = (contractNode.namedChildren || []).find((child) => child.type === "identifier");
+                if (!contractNameNode)
+                    continue;
+                const contractName = getNodeText(content, contractNameNode).trim();
+                if (!contractName)
+                    continue;
+                const bodyNode = (contractNode.namedChildren || []).find((child) => child.type === "contract_body");
+                const members = bodyNode?.namedChildren || [];
+                for (const member of members) {
+                    if (member.type !== "function_definition")
+                        continue;
+                    const fnNameNode = (member.namedChildren || []).find((child) => child.type === "identifier");
+                    if (!fnNameNode)
+                        continue;
+                    const fnName = getNodeText(content, fnNameNode).trim();
+                    if (!fnName)
+                        continue;
+                    if (fnName === contractName) {
+                        const startPos = fnNameNode.startPosition || member.startPosition;
+                        pushFinding(startPos.row, startPos.column, fnNameNode.endPosition?.column ?? startPos.column + fnName.length, "Replace legacy constructor syntax with the 'constructor' keyword in Solidity 0.5+.", "LEGACY_CONSTRUCTOR", severity);
+                    }
+                }
+            }
+        }
+    }
     const visit = (node) => {
         if (!node)
             return;
@@ -127,6 +237,41 @@ function runSemanticRulesAst(content, tree, toggles, pushFinding) {
                     const startPos = objectNode.startPosition || node.startPosition;
                     const endPos = propertyNode.endPosition || node.endPosition;
                     pushFinding(startPos.row, startPos.column, endPos.column, "'this.balance' is deprecated. Use address(this).balance instead.", "DEPRECATED_THIS_BALANCE", vscode.DiagnosticSeverity.Error);
+                }
+            }
+        }
+        if (toggles.msgSenderTransfer && node.type === "call_expression") {
+            const calleeRaw = (node.namedChildren || [])[0];
+            const callee = unwrapExpression(calleeRaw);
+            if (!callee || callee.type !== "member_expression") {
+                for (const child of node.namedChildren || [])
+                    visit(child);
+                return;
+            }
+            const memberObject = unwrapExpression(callee.namedChildren?.[0]);
+            const memberProperty = unwrapExpression(callee.namedChildren?.[1]);
+            if (!memberObject || !memberProperty) {
+                for (const child of node.namedChildren || [])
+                    visit(child);
+                return;
+            }
+            const methodName = getNodeText(content, memberProperty).trim();
+            if (!/^(transfer|send)$/i.test(methodName)) {
+                for (const child of node.namedChildren || [])
+                    visit(child);
+                return;
+            }
+            if (memberObject.type === "member_expression") {
+                const baseObject = unwrapExpression(memberObject.namedChildren?.[0]);
+                const baseProperty = unwrapExpression(memberObject.namedChildren?.[1]);
+                if (baseObject &&
+                    baseProperty &&
+                    baseObject.type === "identifier" &&
+                    getNodeText(content, baseObject).trim() === "msg" &&
+                    getNodeText(content, baseProperty).trim() === "sender") {
+                    const startPos = baseObject.startPosition || node.startPosition;
+                    const endPos = memberProperty.endPosition || node.endPosition;
+                    pushFinding(startPos.row, startPos.column, endPos.column, "Cast msg.sender to payable(msg.sender) before calling transfer/send.", "MSG_SENDER_TRANSFER", vscode.DiagnosticSeverity.Error);
                 }
             }
         }

@@ -100,6 +100,16 @@
           "default": true,
           "description": "Flag usage of this.balance; recommend address(this).balance instead."
         },
+        "solidityStaticAnalyzer.rules.legacyConstructor": {
+          "type": "boolean",
+          "default": true,
+          "description": "Flag functions whose name matches the enclosing contract in Solidity 0.5+; use the 'constructor' keyword instead."
+        },
+        "solidityStaticAnalyzer.rules.msgSenderTransfer": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when calling transfer/send on msg.sender without casting to payable(msg.sender)."
+        },
         "solidityStaticAnalyzer.rules.functionNaming": {
           "type": "boolean",
           "default": true,
