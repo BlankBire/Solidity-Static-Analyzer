@@ -34,6 +34,8 @@ export type AnalyzerRules = {
   missingVisibility: boolean;
   unsafeAddressCast: boolean;
   deprecatedThisBalance: boolean;
+  legacyConstructor: boolean;
+  msgSenderTransfer: boolean;
   // Pragma Rules - Cảnh báo thiếu license hoặc version
   missingLicense: boolean;
   missingVersion: boolean;
@@ -157,6 +159,29 @@ export function analyzeText(
         const collectDeclared = (node: any) => {
           if (!node) return;
           const t = String(node.type).toLowerCase();
+          if (
+            t === "contract_declaration" ||
+            t === "contract_definition" ||
+            t === "interface_definition" ||
+            t === "library_definition"
+          ) {
+            const nameNode = (node.namedChildren || []).find(
+              (child: any) => child.type === "identifier"
+            );
+            if (nameNode) {
+              const name = content
+                .slice(nameNode.startIndex, nameNode.endIndex)
+                .trim();
+              if (name) {
+                declaredIdentifiers.add(name);
+                declaredIdentifierPositions.set(name, {
+                  startIndex: nameNode.startIndex,
+                  endIndex: nameNode.endIndex,
+                  startPosition: nameNode.startPosition,
+                } as any);
+              }
+            }
+          }
           // state variable declarations (tree-sitter-solidity: state_variable_declaration)
           if (
             t === "state_variable_declaration" ||
@@ -415,6 +440,8 @@ export function analyzeText(
           missingVisibility: !!rules.missingVisibility,
           unsafeAddressCast: !!rules.unsafeAddressCast,
           deprecatedThisBalance: !!rules.deprecatedThisBalance,
+          legacyConstructor: !!rules.legacyConstructor,
+          msgSenderTransfer: !!rules.msgSenderTransfer,
         },
         pushFinding
       );
