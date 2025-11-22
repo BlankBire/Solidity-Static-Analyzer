@@ -236,7 +236,9 @@ export function runSyntaxRulesSingleLine(
           const prefix = line.slice(0, nameIdx);
           if (prefix.indexOf(")") !== -1) continue; // likely declaration tail
           if (
-            /^(uint|int|address|bool|string|bytes|mapping)\b/i.test(line.trim())
+            /^(?:uint\d*|int\d*|address|bool|string|bytes\d*|bytes|mapping)\b/i.test(
+              line.trim()
+            )
           )
             continue;
           const afterNameTrim = after.trimLeft();
@@ -694,9 +696,11 @@ export function runParenthesesGlobal(
               (exprType === "identifier" || exprType === "member_expression") &&
               expr.type !== "call_expression"
             ) {
-              const text = content.slice(expr.startIndex, expr.endIndex);
+              const text = content.slice(expr.startIndex, expr.endIndex).trim();
               const idName = text.split(/\.|\s/)[0];
               if (
+                idName &&
+                /^[A-Za-z_][A-Za-z0-9_]*$/.test(idName) &&
                 !declaredIdentifiers.has(idName) &&
                 !isInsideIgnored(expr.startIndex, expr.endIndex)
               ) {
