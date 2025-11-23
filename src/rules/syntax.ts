@@ -445,17 +445,28 @@ export function runSyntaxRulesSingleLine(
         );
       if (!hasType) {
         const name = semiDecl[2];
-        const nameIdx = noComment.indexOf(name);
-        if (nameIdx >= 0) {
-          pushFinding(
-            lineIndex,
-            nameIdx,
-            nameIdx + name.length,
-            "Missing data type declaration for variable.",
-            "MISSING_DATA_TYPE",
-            vscode.DiagnosticSeverity.Error
-          );
-          missingIds.add(name);
+        const reservedBareKeywords = new Set([
+          "return",
+          "break",
+          "continue",
+          "emit",
+          "require",
+          "assert",
+          "revert",
+        ]);
+        if (!reservedBareKeywords.has(name.toLowerCase())) {
+          const nameIdx = noComment.indexOf(name);
+          if (nameIdx >= 0) {
+            pushFinding(
+              lineIndex,
+              nameIdx,
+              nameIdx + name.length,
+              "Missing data type declaration for variable.",
+              "MISSING_DATA_TYPE",
+              vscode.DiagnosticSeverity.Error
+            );
+            missingIds.add(name);
+          }
         }
       }
     }
