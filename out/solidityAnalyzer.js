@@ -350,6 +350,8 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
                 deprecatedThisBalance: !!rules.deprecatedThisBalance,
                 legacyConstructor: !!rules.legacyConstructor,
                 msgSenderTransfer: !!rules.msgSenderTransfer,
+                lowLevelCallNoData: !!rules.lowLevelCallNoData,
+                uncheckedLowLevelCall: !!rules.uncheckedLowLevelCall,
             }, pushFinding);
         }
         catch { }

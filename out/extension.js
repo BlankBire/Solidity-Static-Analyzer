@@ -144,6 +144,8 @@ function runAnalysis(document) {
         deprecatedThisBalance: config.get("rules.deprecatedThisBalance", true),
         legacyConstructor: config.get("rules.legacyConstructor", true),
         msgSenderTransfer: config.get("rules.msgSenderTransfer", true),
+        lowLevelCallNoData: config.get("rules.lowLevelCallNoData", true),
+        uncheckedLowLevelCall: config.get("rules.uncheckedLowLevelCall", true),
         // Pragma rules
         missingLicense: config.get("rules.missingLicense", true),
         missingVersion: config.get("rules.missingVersion", true),

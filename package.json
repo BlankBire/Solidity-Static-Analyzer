@@ -110,6 +110,16 @@
           "default": true,
           "description": "Warn when calling transfer/send on msg.sender without casting to payable(msg.sender)."
         },
+        "solidityStaticAnalyzer.rules.lowLevelCallNoData": {
+          "type": "boolean",
+          "default": true,
+          "description": "Flag low-level .call/.delegatecall/.staticcall without explicit calldata argument."
+        },
+        "solidityStaticAnalyzer.rules.uncheckedLowLevelCall": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when low-level call results are used without destructuring or success checks."
+        },
         "solidityStaticAnalyzer.rules.functionNaming": {
           "type": "boolean",
           "default": true,
