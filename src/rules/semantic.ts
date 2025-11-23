@@ -6,6 +6,8 @@ export interface SemanticRuleToggles {
   deprecatedThisBalance: boolean;
   legacyConstructor: boolean;
   msgSenderTransfer: boolean;
+  lowLevelCallNoData: boolean;
+  uncheckedLowLevelCall: boolean;
 }
 
 type PushFinding = (
@@ -38,6 +40,15 @@ const getDescendant = (node: any, predicate: (child: any) => boolean): any => {
   return undefined;
 };
 
+const LOW_LEVEL_CALL_NAMES = new Set([
+  "call",
+  "callcode",
+  "delegatecall",
+  "staticcall",
+]);
+
+const REQUIRE_FUNCTIONS = new Set(["require", "assert"]);
+
 const getNodeText = (content: string, node: any): string => {
   if (!node) return "";
   return content.slice(node.startIndex, node.endIndex);
@@ -54,6 +65,25 @@ const unwrapExpression = (node: any): any => {
     current = current.namedChildren[0];
   }
   return current;
+};
+
+const unwrapExpressionParents = (node: any): { container: any; inner: any } => {
+  let inner = node;
+  let parent = inner?.parent;
+  while (parent && parent.type === "expression") {
+    inner = parent;
+    parent = parent.parent;
+  }
+  return { container: parent, inner };
+};
+
+const findAncestorCall = (node: any): any => {
+  let current = node?.parent;
+  while (current) {
+    if (current.type === "call_expression") return current;
+    current = current.parent;
+  }
+  return undefined;
 };
 
 export function runSemanticRulesAst(
@@ -172,6 +202,25 @@ export function runSemanticRulesAst(
   const visit = (node: any) => {
     if (!node) return;
 
+    let callMemberObject: any | undefined;
+    let callMemberProperty: any | undefined;
+    let callMethodName = "";
+    let callArguments: any[] = [];
+    if (node.type === "call_expression") {
+      const calleeRaw = (node.namedChildren || [])[0];
+      const callee = unwrapExpression(calleeRaw);
+      if (callee && callee.type === "member_expression") {
+        callMemberObject = unwrapExpression(callee.namedChildren?.[0]);
+        callMemberProperty = unwrapExpression(callee.namedChildren?.[1]);
+        if (callMemberProperty) {
+          callMethodName = getNodeText(content, callMemberProperty).trim();
+        }
+      }
+      callArguments = (node.namedChildren || []).filter(
+        (child: any) => child.type === "call_argument"
+      );
+    }
+
     if (toggles.missingVisibility && node.type === "function_definition") {
       const hasVisibility = (node.namedChildren || []).some((child: any) => {
         const t = String(child.type);
@@ -278,26 +327,18 @@ export function runSemanticRulesAst(
     }
 
     if (toggles.msgSenderTransfer && node.type === "call_expression") {
-      const calleeRaw = (node.namedChildren || [])[0];
-      const callee = unwrapExpression(calleeRaw);
-      if (!callee || callee.type !== "member_expression") {
-        for (const child of node.namedChildren || []) visit(child);
-        return;
-      }
-      const memberObject = unwrapExpression(callee.namedChildren?.[0]);
-      const memberProperty = unwrapExpression(callee.namedChildren?.[1]);
-      if (!memberObject || !memberProperty) {
-        for (const child of node.namedChildren || []) visit(child);
-        return;
-      }
-      const methodName = getNodeText(content, memberProperty).trim();
-      if (!/^(transfer|send)$/i.test(methodName)) {
-        for (const child of node.namedChildren || []) visit(child);
-        return;
-      }
-      if (memberObject.type === "member_expression") {
-        const baseObject = unwrapExpression(memberObject.namedChildren?.[0]);
-        const baseProperty = unwrapExpression(memberObject.namedChildren?.[1]);
+      if (
+        callMemberObject &&
+        callMemberProperty &&
+        callMemberObject.type === "member_expression" &&
+        /^(transfer|send)$/i.test(callMethodName)
+      ) {
+        const baseObject = unwrapExpression(
+          callMemberObject.namedChildren?.[0]
+        );
+        const baseProperty = unwrapExpression(
+          callMemberObject.namedChildren?.[1]
+        );
         if (
           baseObject &&
           baseProperty &&
@@ -306,7 +347,7 @@ export function runSemanticRulesAst(
           getNodeText(content, baseProperty).trim() === "sender"
         ) {
           const startPos = baseObject.startPosition || node.startPosition;
-          const endPos = memberProperty.endPosition || node.endPosition;
+          const endPos = callMemberProperty.endPosition || node.endPosition;
           pushFinding(
             startPos.row,
             startPos.column,
@@ -315,6 +356,117 @@ export function runSemanticRulesAst(
             "MSG_SENDER_TRANSFER",
             vscode.DiagnosticSeverity.Error
           );
+        }
+      }
+    }
+
+    if (node.type === "call_expression") {
+      const isLowLevel = LOW_LEVEL_CALL_NAMES.has(callMethodName.toLowerCase());
+      if (isLowLevel && callMemberProperty && callMemberObject) {
+        if (toggles.lowLevelCallNoData && callArguments.length === 0) {
+          const startPos =
+            callMemberProperty.startPosition || node.startPosition;
+          const endPos = callMemberProperty.endPosition || node.endPosition;
+          pushFinding(
+            startPos.row,
+            startPos.column,
+            endPos.column,
+            'Low-level call requires a calldata argument. Pass a bytes payload (use "" for empty calldata).',
+            "LOW_LEVEL_CALL_NO_DATA",
+            vscode.DiagnosticSeverity.Error
+          );
+        }
+
+        if (toggles.uncheckedLowLevelCall) {
+          const { container } = unwrapExpressionParents(node);
+          const parentCall = (() => {
+            let curParent = node.parent;
+            while (curParent) {
+              if (curParent.type === "call_expression" && curParent !== node) {
+                return curParent;
+              }
+              curParent = curParent.parent;
+            }
+            return undefined;
+          })();
+
+          const inAssignment = (() => {
+            let current = node.parent;
+            while (current) {
+              const t = String(current.type);
+              if (
+                t === "assignment_expression" ||
+                t === "variable_declaration_statement" ||
+                t === "return_statement"
+              ) {
+                return true;
+              }
+              current = current.parent;
+            }
+            return false;
+          })();
+
+          if (!inAssignment && container?.type === "expression_statement") {
+            const startPos =
+              callMemberProperty.startPosition || node.startPosition;
+            const endPos = callMemberProperty.endPosition || node.endPosition;
+            pushFinding(
+              startPos.row,
+              startPos.column,
+              endPos.column,
+              "Low-level call result ignored. Capture the boolean success flag and handle failures explicitly.",
+              "UNCHECKED_LOW_LEVEL_CALL",
+              vscode.DiagnosticSeverity.Error
+            );
+          } else if (parentCall && container?.type === "call_argument") {
+            const parentCalleeRaw = (parentCall.namedChildren || [])[0];
+            const parentCallee = unwrapExpression(parentCalleeRaw);
+            let parentName = "";
+            if (parentCallee?.type === "identifier") {
+              parentName = getNodeText(content, parentCallee).trim();
+            } else if (parentCallee?.type === "member_expression") {
+              const prop = unwrapExpression(parentCallee.namedChildren?.[1]);
+              if (prop) parentName = getNodeText(content, prop).trim();
+            }
+            if (REQUIRE_FUNCTIONS.has(parentName.toLowerCase())) {
+              const startPos =
+                callMemberProperty.startPosition || node.startPosition;
+              const endPos = callMemberProperty.endPosition || node.endPosition;
+              pushFinding(
+                startPos.row,
+                startPos.column,
+                endPos.column,
+                "Low-level call returns (bool success, bytes data); destructure the tuple before passing into require/assert.",
+                "LOW_LEVEL_CALL_TUPLE",
+                vscode.DiagnosticSeverity.Error
+              );
+
+              const requireRangeNode = (() => {
+                if (!parentCallee) return parentCall;
+                if (parentCallee.type === "member_expression") {
+                  return (
+                    unwrapExpression(parentCallee.namedChildren?.[1]) ||
+                    parentCallee
+                  );
+                }
+                return parentCallee;
+              })();
+              const requireStart =
+                requireRangeNode?.startPosition || parentCall.startPosition;
+              const requireEnd =
+                requireRangeNode?.endPosition || parentCall.endPosition;
+              if (requireStart && requireEnd) {
+                pushFinding(
+                  requireStart.row,
+                  requireStart.column,
+                  requireEnd.column,
+                  "require/assert expects a boolean success flag; destructure the low-level call tuple before passing it in.",
+                  "REQUIRE_LOW_LEVEL_CALL_TUPLE",
+                  vscode.DiagnosticSeverity.Error
+                );
+              }
+            }
+          }
         }
       }
     }
