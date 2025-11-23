@@ -36,6 +36,8 @@ export type AnalyzerRules = {
   deprecatedThisBalance: boolean;
   legacyConstructor: boolean;
   msgSenderTransfer: boolean;
+  lowLevelCallNoData: boolean;
+  uncheckedLowLevelCall: boolean;
   // Pragma Rules - Cảnh báo thiếu license hoặc version
   missingLicense: boolean;
   missingVersion: boolean;
@@ -442,6 +444,8 @@ export function analyzeText(
           deprecatedThisBalance: !!rules.deprecatedThisBalance,
           legacyConstructor: !!rules.legacyConstructor,
           msgSenderTransfer: !!rules.msgSenderTransfer,
+          lowLevelCallNoData: !!rules.lowLevelCallNoData,
+          uncheckedLowLevelCall: !!rules.uncheckedLowLevelCall,
         },
         pushFinding
       );

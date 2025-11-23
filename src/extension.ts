@@ -128,6 +128,11 @@ function runAnalysis(document: vscode.TextDocument) {
     ),
     legacyConstructor: config.get<boolean>("rules.legacyConstructor", true),
     msgSenderTransfer: config.get<boolean>("rules.msgSenderTransfer", true),
+    lowLevelCallNoData: config.get<boolean>("rules.lowLevelCallNoData", true),
+    uncheckedLowLevelCall: config.get<boolean>(
+      "rules.uncheckedLowLevelCall",
+      true
+    ),
     // Pragma rules
     missingLicense: config.get<boolean>("rules.missingLicense", true),
     missingVersion: config.get<boolean>("rules.missingVersion", true),
