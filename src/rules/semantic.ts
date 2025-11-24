@@ -8,6 +8,7 @@ export interface SemanticRuleToggles {
   msgSenderTransfer: boolean;
   lowLevelCallNoData: boolean;
   uncheckedLowLevelCall: boolean;
+  legacyFallbackFunction: boolean;
 }
 
 type PushFinding = (
@@ -201,6 +202,28 @@ export function runSemanticRulesAst(
 
   const visit = (node: any) => {
     if (!node) return;
+
+    if (
+      toggles.legacyFallbackFunction &&
+      node.type === "fallback_receive_definition"
+    ) {
+      const snippet = getNodeText(content, node).replace(/^\s+/, "");
+      if (/^function\s*\(/i.test(snippet)) {
+        const startPos = node.startPosition || { row: 0, column: 0 };
+        const severity = versionAtLeast(versionInfo, 0, 6)
+          ? vscode.DiagnosticSeverity.Error
+          : vscode.DiagnosticSeverity.Warning;
+        const endColumn = startPos.column + "function".length;
+        pushFinding(
+          startPos.row,
+          startPos.column,
+          endColumn,
+          "Anonymous fallback syntax is deprecated. Use 'fallback() external' or 'receive() external payable' instead of 'function()'.",
+          "LEGACY_FALLBACK_FUNCTION",
+          severity
+        );
+      }
+    }
 
     let callMemberObject: any | undefined;
     let callMemberProperty: any | undefined;
