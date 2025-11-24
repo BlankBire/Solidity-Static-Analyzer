@@ -25,6 +25,7 @@ export type AnalyzerRules = {
   missingReturn: boolean;
   wrongKeywords: boolean;
   missingDataType: boolean;
+  legacyFallbackFunction: boolean;
   missingPayable: boolean;
   // Naming Rules
   functionNaming: boolean;
@@ -446,6 +447,7 @@ export function analyzeText(
           msgSenderTransfer: !!rules.msgSenderTransfer,
           lowLevelCallNoData: !!rules.lowLevelCallNoData,
           uncheckedLowLevelCall: !!rules.uncheckedLowLevelCall,
+          legacyFallbackFunction: !!rules.legacyFallbackFunction,
         },
         pushFinding
       );

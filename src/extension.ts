@@ -115,6 +115,10 @@ function runAnalysis(document: vscode.TextDocument) {
     missingReturn: config.get<boolean>("rules.missingReturn", true),
     wrongKeywords: config.get<boolean>("rules.wrongKeywords", true),
     missingDataType: config.get<boolean>("rules.missingDataType", true),
+    legacyFallbackFunction: config.get<boolean>(
+      "rules.legacyFallbackFunction",
+      true
+    ),
     missingPayable: config.get<boolean>("rules.missingPayable", true),
     functionNaming: config.get<boolean>("rules.functionNaming", true),
     variableNaming: config.get<boolean>("rules.variableNaming", true),
