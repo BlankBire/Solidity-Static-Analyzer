@@ -16,6 +16,24 @@ export interface SyntaxRuleConfig {
   missingDataType: boolean;
 }
 
+const RESERVED_MISSING_TYPE_KEYWORDS = new Set([
+  "payable",
+  "public",
+  "private",
+  "internal",
+  "external",
+  "view",
+  "pure",
+  "constant",
+  "immutable",
+  "virtual",
+  "override",
+  "constructor",
+  "fallback",
+  "receive",
+  "_",
+]);
+
 /** Per-line syntax checks excluding braces/paren global passes */
 export function runSyntaxRulesSingleLine(
   line: string,
@@ -31,6 +49,11 @@ export function runSyntaxRulesSingleLine(
   const stripInlineComments = (s: string) => s.split("//")[0];
   const declaredIds = declaredIdentifiers || new Set<string>();
   const missingIds = missingTypeIdentifiers || new Set<string>();
+  const addMissingId = (name: string) => {
+    if (!name) return;
+    if (RESERVED_MISSING_TYPE_KEYWORDS.has(name.toLowerCase())) return;
+    missingIds.add(name);
+  };
   // 5. MISSING_SEMICOLON
   if (config.missingSemicolon) {
     const trimmedLine = line.trim();
@@ -374,7 +397,7 @@ export function runSyntaxRulesSingleLine(
         "MISSING_DATA_TYPE",
         vscode.DiagnosticSeverity.Error
       );
-      missingIds.add(name);
+      addMissingId(name);
       if (assignRx.lastIndex === mAssign.index) assignRx.lastIndex += 1;
     }
 
@@ -427,7 +450,7 @@ export function runSyntaxRulesSingleLine(
               "MISSING_DATA_TYPE",
               vscode.DiagnosticSeverity.Error
             );
-            missingIds.add(idMatch[0]);
+            addMissingId(idMatch[0]);
           }
         }
         cursor += part.length + 1;
@@ -453,6 +476,7 @@ export function runSyntaxRulesSingleLine(
           "require",
           "assert",
           "revert",
+          "_",
         ]);
         if (!reservedBareKeywords.has(name.toLowerCase())) {
           const nameIdx = noComment.indexOf(name);
@@ -465,7 +489,7 @@ export function runSyntaxRulesSingleLine(
               "MISSING_DATA_TYPE",
               vscode.DiagnosticSeverity.Error
             );
-            missingIds.add(name);
+            addMissingId(name);
           }
         }
       }
@@ -522,7 +546,7 @@ export function runSyntaxRulesSingleLine(
               "MISSING_DATA_TYPE",
               vscode.DiagnosticSeverity.Error
             );
-            missingIds.add(idMatch[0]);
+            addMissingId(idMatch[0]);
           }
         }
         cursor += raw.length + 1;
@@ -620,7 +644,11 @@ export function runSyntaxRulesSingleLine(
 
     // 9.x Usage of previously marked untyped identifiers
     if (missingIds.size > 0) {
+      if (!/[A-Za-z_]/.test(noComment)) {
+        return;
+      }
       for (const id of Array.from(missingIds)) {
+        if (RESERVED_MISSING_TYPE_KEYWORDS.has(id.toLowerCase())) continue;
         const rx = new RegExp(`\\b${id}\\b`);
         const mUse = noComment.match(rx);
         if (mUse && mUse.index !== undefined) {
