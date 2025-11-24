@@ -55,27 +55,30 @@ function runNamingRulesSingleLine(line, lineIndex, naming, toggles, pushFinding)
         const mFunc = lineClean.match(/\bfunction\b([^\(]*)\(/);
         if (mFunc && mFunc.index !== undefined) {
             const seg = mFunc[1];
-            const segStart = mFunc.index + mFunc[0].indexOf(seg);
-            const leadingWs = (seg.match(/^\s*/) || [""])[0].length;
-            const firstIdx = leadingWs;
-            const firstAbs = segStart + firstIdx;
-            const firstCh = seg[firstIdx];
-            if (!firstCh || !/[A-Za-z_]/.test(firstCh)) {
-                pushFinding(lineIndex, firstAbs, firstAbs + 1, "Invalid function identifier.", "FUNCTION_NAMING", vscode.DiagnosticSeverity.Error);
-            }
-            else {
-                const idMatch = seg.slice(firstIdx).match(/^[A-Za-z_][A-Za-z0-9_]*/);
-                const name = idMatch ? idMatch[0] : "";
-                const nameStart = firstAbs;
-                const nameEnd = nameStart + name.length;
-                const rest = seg.slice(firstIdx + name.length);
-                if (/[^\s]/.test(rest)) {
-                    pushFinding(lineIndex, nameStart, nameEnd, "Invalid function identifier.", "FUNCTION_NAMING", vscode.DiagnosticSeverity.Error);
+            const segTrimmed = seg.trim();
+            if (segTrimmed !== "") {
+                const segStart = mFunc.index + mFunc[0].indexOf(seg);
+                const leadingWs = (seg.match(/^\s*/) || [""])[0].length;
+                const firstIdx = leadingWs;
+                const firstAbs = segStart + firstIdx;
+                const firstCh = seg[firstIdx];
+                if (!firstCh || !/[A-Za-z_]/.test(firstCh)) {
+                    pushFinding(lineIndex, firstAbs, firstAbs + 1, "Invalid function identifier.", "FUNCTION_NAMING", vscode.DiagnosticSeverity.Error);
                 }
                 else {
-                    const fnRegex = tryRegex(naming.functionPattern);
-                    if (fnRegex && !fnRegex.test(name)) {
-                        pushFinding(lineIndex, nameStart, nameEnd, `Invalid function identifier '${name}'.`, "FUNCTION_NAMING", vscode.DiagnosticSeverity.Error);
+                    const idMatch = seg.slice(firstIdx).match(/^[A-Za-z_][A-Za-z0-9_]*/);
+                    const name = idMatch ? idMatch[0] : "";
+                    const nameStart = firstAbs;
+                    const nameEnd = nameStart + name.length;
+                    const rest = seg.slice(firstIdx + name.length);
+                    if (/[^\s]/.test(rest)) {
+                        pushFinding(lineIndex, nameStart, nameEnd, "Invalid function identifier.", "FUNCTION_NAMING", vscode.DiagnosticSeverity.Error);
+                    }
+                    else {
+                        const fnRegex = tryRegex(naming.functionPattern);
+                        if (fnRegex && !fnRegex.test(name)) {
+                            pushFinding(lineIndex, nameStart, nameEnd, `Invalid function identifier '${name}'.`, "FUNCTION_NAMING", vscode.DiagnosticSeverity.Error);
+                        }
                     }
                 }
             }
@@ -151,27 +154,31 @@ function runNamingRulesSingleLine(line, lineIndex, naming, toggles, pushFinding)
         const m = decl.match(/\b(contract|interface|library)\b([^\{]*)\{/);
         if (m && m.index !== undefined) {
             const seg = m[2];
-            const segStart = m.index + m[0].indexOf(seg);
-            const leadingWs = (seg.match(/^\s*/) || [""])[0].length;
-            const firstIdx = leadingWs;
-            const firstAbs = segStart + firstIdx;
-            const firstCh = seg[firstIdx];
-            if (!firstCh || !/[A-Za-z_]/.test(firstCh)) {
-                pushFinding(lineIndex, firstAbs, firstAbs + 1, "Invalid contract/interface/library identifier.", "CONTRACT_NAMING", vscode.DiagnosticSeverity.Error);
+            const segTrim = seg.trim();
+            const braceIdx = decl.indexOf("{", m.index);
+            const baseStart = m.index + m[0].indexOf(seg);
+            if (segTrim === "") {
+                const reportCol = braceIdx >= 0 ? braceIdx : baseStart;
+                pushFinding(lineIndex, reportCol, reportCol + 1, "Invalid contract/interface/library identifier.", "CONTRACT_NAMING", vscode.DiagnosticSeverity.Error);
             }
             else {
-                const idMatch = seg.slice(firstIdx).match(/^[A-Za-z_][A-Za-z0-9_]*/);
-                const name = idMatch ? idMatch[0] : "";
-                const nameStart = firstAbs;
+                const name = segTrim.split(/\s+/)[0];
+                const nameRelIdx = seg.indexOf(name);
+                const nameStart = baseStart + (nameRelIdx >= 0 ? nameRelIdx : 0);
                 const nameEnd = nameStart + name.length;
-                const rest = seg.slice(firstIdx + name.length);
-                if (/[^\s]/.test(rest)) {
-                    pushFinding(lineIndex, nameStart, nameEnd, "Invalid contract/interface/library identifier.", "CONTRACT_NAMING", vscode.DiagnosticSeverity.Error);
+                if (!/[A-Za-z_]/.test(name[0] || "")) {
+                    pushFinding(lineIndex, nameStart, nameStart + 1, "Invalid contract/interface/library identifier.", "CONTRACT_NAMING", vscode.DiagnosticSeverity.Error);
                 }
                 else {
-                    const rx = tryRegex(naming.contractPattern);
-                    if (rx && !rx.test(name)) {
-                        pushFinding(lineIndex, nameStart, nameEnd, `Invalid contract/interface/library identifier '${name}'.`, "CONTRACT_NAMING", vscode.DiagnosticSeverity.Error);
+                    const rest = segTrim.slice(name.length).trim();
+                    if (rest && !/^is\b/i.test(rest)) {
+                        pushFinding(lineIndex, nameStart, nameEnd, "Invalid contract/interface/library identifier.", "CONTRACT_NAMING", vscode.DiagnosticSeverity.Error);
+                    }
+                    else {
+                        const rx = tryRegex(naming.contractPattern);
+                        if (rx && !rx.test(name)) {
+                            pushFinding(lineIndex, nameStart, nameEnd, `Invalid contract/interface/library identifier '${name}'.`, "CONTRACT_NAMING", vscode.DiagnosticSeverity.Error);
+                        }
                     }
                 }
             }

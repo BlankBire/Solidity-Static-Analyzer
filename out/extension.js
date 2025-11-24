@@ -134,6 +134,7 @@ function runAnalysis(document) {
         missingReturn: config.get("rules.missingReturn", true),
         wrongKeywords: config.get("rules.wrongKeywords", true),
         missingDataType: config.get("rules.missingDataType", true),
+        legacyFallbackFunction: config.get("rules.legacyFallbackFunction", true),
         missingPayable: config.get("rules.missingPayable", true),
         functionNaming: config.get("rules.functionNaming", true),
         variableNaming: config.get("rules.variableNaming", true),

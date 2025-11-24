@@ -80,6 +80,11 @@
           "default": true,
           "description": "Detect missing data type declarations."
         },
+        "solidityStaticAnalyzer.rules.legacyFallbackFunction": {
+          "type": "boolean",
+          "default": true,
+          "description": "Flag legacy anonymous fallback functions (function() {...})."
+        },
         "solidityStaticAnalyzer.rules.missingPayable": {
           "type": "boolean",
           "default": true,

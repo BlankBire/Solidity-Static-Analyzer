@@ -200,6 +200,18 @@ function runSemanticRulesAst(content, tree, toggles, pushFinding) {
     const visit = (node) => {
         if (!node)
             return;
+        if (toggles.legacyFallbackFunction &&
+            node.type === "fallback_receive_definition") {
+            const snippet = getNodeText(content, node).replace(/^\s+/, "");
+            if (/^function\s*\(/i.test(snippet)) {
+                const startPos = node.startPosition || { row: 0, column: 0 };
+                const severity = versionAtLeast(versionInfo, 0, 6)
+                    ? vscode.DiagnosticSeverity.Error
+                    : vscode.DiagnosticSeverity.Warning;
+                const endColumn = startPos.column + "function".length;
+                pushFinding(startPos.row, startPos.column, endColumn, "Anonymous fallback syntax is deprecated. Use 'fallback() external' or 'receive() external payable' instead of 'function()'.", "LEGACY_FALLBACK_FUNCTION", severity);
+            }
+        }
         let callMemberObject;
         let callMemberProperty;
         let callMethodName = "";
@@ -305,7 +317,7 @@ function runSemanticRulesAst(content, tree, toggles, pushFinding) {
                 if (toggles.lowLevelCallNoData && callArguments.length === 0) {
                     const startPos = callMemberProperty.startPosition || node.startPosition;
                     const endPos = callMemberProperty.endPosition || node.endPosition;
-                    pushFinding(startPos.row, startPos.column, endPos.column, "Low-level call requires a calldata argument. Pass a bytes payload (use \"\" for empty calldata).", "LOW_LEVEL_CALL_NO_DATA", vscode.DiagnosticSeverity.Error);
+                    pushFinding(startPos.row, startPos.column, endPos.column, 'Low-level call requires a calldata argument. Pass a bytes payload (use "" for empty calldata).', "LOW_LEVEL_CALL_NO_DATA", vscode.DiagnosticSeverity.Error);
                 }
                 if (toggles.uncheckedLowLevelCall) {
                     const { container } = unwrapExpressionParents(node);
@@ -357,7 +369,8 @@ function runSemanticRulesAst(content, tree, toggles, pushFinding) {
                                 if (!parentCallee)
                                     return parentCall;
                                 if (parentCallee.type === "member_expression") {
-                                    return (unwrapExpression(parentCallee.namedChildren?.[1]) || parentCallee);
+                                    return (unwrapExpression(parentCallee.namedChildren?.[1]) ||
+                                        parentCallee);
                                 }
                                 return parentCallee;
                             })();

@@ -38,11 +38,35 @@ exports.runBracesGlobal = runBracesGlobal;
 exports.runParenthesesGlobal = runParenthesesGlobal;
 exports.runMissingReturnAst = runMissingReturnAst;
 const vscode = __importStar(require("vscode"));
+const RESERVED_MISSING_TYPE_KEYWORDS = new Set([
+    "payable",
+    "public",
+    "private",
+    "internal",
+    "external",
+    "view",
+    "pure",
+    "constant",
+    "immutable",
+    "virtual",
+    "override",
+    "constructor",
+    "fallback",
+    "receive",
+    "_",
+]);
 /** Per-line syntax checks excluding braces/paren global passes */
 function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, content, pushFinding, declaredIdentifiers, missingTypeIdentifiers) {
     const stripInlineComments = (s) => s.split("//")[0];
     const declaredIds = declaredIdentifiers || new Set();
     const missingIds = missingTypeIdentifiers || new Set();
+    const addMissingId = (name) => {
+        if (!name)
+            return;
+        if (RESERVED_MISSING_TYPE_KEYWORDS.has(name.toLowerCase()))
+            return;
+        missingIds.add(name);
+    };
     // 5. MISSING_SEMICOLON
     if (config.missingSemicolon) {
         const trimmedLine = line.trim();
@@ -293,7 +317,7 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
             }
             const nameStart = mAssign.index + prefix.length;
             pushFinding(lineIndex, nameStart, nameStart + name.length, "Missing data type declaration for variable.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
-            missingIds.add(name);
+            addMissingId(name);
             if (assignRx.lastIndex === mAssign.index)
                 assignRx.lastIndex += 1;
         }
@@ -328,7 +352,7 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
                     if (idMatch && idMatch.index !== undefined) {
                         const startCol = cursor + idMatch.index;
                         pushFinding(lineIndex, startCol, startCol + idMatch[0].length, "Missing data type declaration for variable.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
-                        missingIds.add(idMatch[0]);
+                        addMissingId(idMatch[0]);
                     }
                 }
                 cursor += part.length + 1;
@@ -348,12 +372,13 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
                     "require",
                     "assert",
                     "revert",
+                    "_",
                 ]);
                 if (!reservedBareKeywords.has(name.toLowerCase())) {
                     const nameIdx = noComment.indexOf(name);
                     if (nameIdx >= 0) {
                         pushFinding(lineIndex, nameIdx, nameIdx + name.length, "Missing data type declaration for variable.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
-                        missingIds.add(name);
+                        addMissingId(name);
                     }
                 }
             }
@@ -389,7 +414,7 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
                         const startCol = cursor + idMatch.index;
                         const len = idMatch[0].length;
                         pushFinding(lineIndex, startCol, startCol + len, "Missing data type declaration for variable.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
-                        missingIds.add(idMatch[0]);
+                        addMissingId(idMatch[0]);
                     }
                 }
                 cursor += raw.length + 1;
@@ -454,7 +479,12 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
         }
         // 9.x Usage of previously marked untyped identifiers
         if (missingIds.size > 0) {
+            if (!/[A-Za-z_]/.test(noComment)) {
+                return;
+            }
             for (const id of Array.from(missingIds)) {
+                if (RESERVED_MISSING_TYPE_KEYWORDS.has(id.toLowerCase()))
+                    continue;
                 const rx = new RegExp(`\\b${id}\\b`);
                 const mUse = noComment.match(rx);
                 if (mUse && mUse.index !== undefined) {
