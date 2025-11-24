@@ -1,4 +1,4 @@
-# Solidify – Real-Time Solidity Static Analyzer
+# Solidify – Real-Time Solidity Analyzer
 
 Solidify is a Visual Studio Code extension that surfaces static-analysis diagnostics for Solidity smart contracts **while you type**. It combines a high-speed `tree-sitter` parser with targeted regular-expression scans to deliver instant feedback without breaking the developer’s flow.
 

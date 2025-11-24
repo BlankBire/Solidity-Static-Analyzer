@@ -182,7 +182,7 @@ function runAnalysis(document: vscode.TextDocument) {
       new vscode.Position(f.range.end.line, f.range.end.character)
     );
     const diag = new vscode.Diagnostic(range, f.message, f.severity);
-    diag.source = "Solidity Static Analyzer";
+    diag.source = "SOLIDIFY\u00A0"; // Non-breaking space to force UI gap before (code)
     diag.code = f.code;
     return diag;
   });

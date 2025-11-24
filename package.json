@@ -1,6 +1,6 @@
 {
   "name": "solidity-static-analyzer",
-  "displayName": "Solidity Static Analyzer",
+  "displayName": "Solidify",
   "description": "Static analysis diagnostics for Solidity smart contracts in VS Code.",
   "version": "0.0.1",
   "publisher": "your-name",
@@ -23,12 +23,12 @@
   "main": "out/extension.js",
   "contributes": {
     "configuration": {
-      "title": "Solidity Static Analyzer",
+      "title": "Solidify",
       "properties": {
         "solidityStaticAnalyzer.enable": {
           "type": "boolean",
           "default": true,
-          "description": "Enable/disable the Solidity Static Analyzer."
+          "description": "Enable/disable Solidify."
         },
         "solidityStaticAnalyzer.rules.txOrigin": {
           "type": "boolean",

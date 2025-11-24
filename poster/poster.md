@@ -1,15 +1,15 @@
-# Solidity Static Analyzer - Nội dung Poster (Báo cáo tiến độ)
+# Solidify - Nội dung Poster (Báo cáo tiến độ)
 
 ## TÓM TẮT
 
-**Solidity Static Analyzer** - Extension phân tích mã tĩnh thời gian thực cho Visual Studio Code, phát hiện lỗi bảo mật và cú pháp trong smart contracts Solidity, triển khai dưới dạng bộ quy tắc chạy trực tiếp trong IDE giúp lập trình viên nhận phản hồi ngay khi gõ code, giảm thiểu lỗi trước khi đưa vào pipeline kiểm thử.
+**Solidify** - Extension phân tích mã tĩnh thời gian thực cho Visual Studio Code, phát hiện lỗi bảo mật và cú pháp trong smart contracts Solidity, triển khai dưới dạng bộ quy tắc chạy trực tiếp trong IDE giúp lập trình viên nhận phản hồi ngay khi gõ code, giảm thiểu lỗi trước khi đưa vào pipeline kiểm thử.
 
 ---
 
 ## GIỚI THIỆU
 
 Smart contracts xử lý tài sản giá trị cao trên blockchain với tính bất biến, khiến lỗ hổng bảo mật có thể gây thiệt hại nghiêm trọng. Các công cụ phân tích tĩnh hiện tại thường phức tạp, không tích hợp tốt vào quy trình phát triển, dẫn đến nhiều lỗ hổng bị bỏ sót.
-**Solidity Static Analyzer** là extension VS Code cung cấp phân tích tĩnh thời gian thực cho smart contracts Solidity. Tool phát hiện các lỗ hổng bảo mật phổ biến (tx.origin, selfdestruct, delegatecall, reentrancy) và lỗi cú pháp cơ bản ngay khi lập trình viên gõ code.
+**Solidify** là extension VS Code cung cấp phân tích tĩnh thời gian thực cho smart contracts Solidity. Tool phát hiện các lỗ hổng bảo mật phổ biến (tx.origin, selfdestruct, delegatecall, reentrancy) và lỗi cú pháp cơ bản ngay khi lập trình viên gõ code.
 Công trình trình bày kiến trúc modular, kết quả thử nghiệm trên mẫu hợp đồng và phương hướng cải thiện để tăng độ chính xác và giảm false positives.
 
 ---
@@ -40,7 +40,7 @@ Công cụ được kiểm thử trên nhiều mẫu smart contract chứa lỗi
 
 ## KẾT LUẬN VÀ HƯỚNG PHÁT TRIỂN
 
-**Solidity Static Analyzer** đã chứng minh tính khả thi của phân tích mã tĩnh thời gian thực trong môi trường phát triển VS Code, giúp phát hiện sớm các lỗi cú pháp và bảo mật phổ biến trong smart contracts. Công cụ hoạt động ổn định, phản hồi nhanh và hỗ trợ lập trình viên giảm thiểu rủi ro bảo mật ngay trong quá trình viết mã.
+**Solidify** đã chứng minh tính khả thi của phân tích mã tĩnh thời gian thực trong môi trường phát triển VS Code, giúp phát hiện sớm các lỗi cú pháp và bảo mật phổ biến trong smart contracts. Công cụ hoạt động ổn định, phản hồi nhanh và hỗ trợ lập trình viên giảm thiểu rủi ro bảo mật ngay trong quá trình viết mã.
 Trong tương lai, nhóm phát triển hướng đến việc mở rộng bộ quy tắc để bao phủ nhiều mẫu tấn công phức tạp hơn, bổ sung đánh giá định lượng và so sánh với các công cụ khác, cũng như tích hợp machine learning nhằm tự động phát hiện các mẫu lỗi mới trong smart contracts.
 
 ---
