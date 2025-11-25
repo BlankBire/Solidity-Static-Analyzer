@@ -32,6 +32,41 @@ const tryRegex = (src?: string) => {
   }
 };
 
+const baseTypeTokens = new Set([
+  "address",
+  "bool",
+  "string",
+  "byte",
+  "bytes",
+  "var",
+]);
+const modifierKeywords = new Set([
+  "public",
+  "private",
+  "internal",
+  "external",
+  "view",
+  "pure",
+  "payable",
+  "constant",
+  "immutable",
+  "memory",
+  "storage",
+  "calldata",
+]);
+const isTypeToken = (token: string): boolean => {
+  if (!token) return false;
+  const lower = token.toLowerCase();
+  if (lower !== token) return false;
+  if (baseTypeTokens.has(lower)) return true;
+  if (/^u?int\d*$/.test(lower)) return true;
+  if (/^bytes\d*$/.test(lower)) return true;
+  if (lower === "mapping" || lower === "struct" || lower === "enum") {
+    return true;
+  }
+  return false;
+};
+
 export function runNamingRulesSingleLine(
   line: string,
   lineIndex: number,
@@ -98,11 +133,11 @@ export function runNamingRulesSingleLine(
 
   // VARIABLE_NAMING
   if (toggles.variableNaming) {
-    const decl = stripInline(line).trim();
-    const startsWithType =
-      /^(?:uint\d*|int\d*|uint|int|address|bool|string|bytes\d*|bytes|mapping\s*\(|struct\s+\w+|enum\s+\w+)/i.test(
-        decl
-      );
+    const original = stripInline(line);
+    const decl = original.trim();
+    const firstTokenMatch = decl.match(/^[A-Za-z_][A-Za-z0-9_]*/);
+    const firstToken = firstTokenMatch ? firstTokenMatch[0] : "";
+    const startsWithType = isTypeToken(firstToken);
     const isFunctionLine = /^\s*function\b/i.test(decl);
     const isEventOrOther =
       /^\s*(contract|interface|library|event|modifier|enum|struct)\b/i.test(
@@ -111,24 +146,9 @@ export function runNamingRulesSingleLine(
     if (startsWithType && !isFunctionLine && !isEventOrOther) {
       const normalized = decl.replace(/\b(mapping\s*\([^)]*\))/gi, "mapping");
       const tokens = normalized.split(/\s+/).filter(Boolean);
-      const modifierKeywords = new Set([
-        "public",
-        "private",
-        "internal",
-        "external",
-        "view",
-        "pure",
-        "payable",
-        "constant",
-        "immutable",
-        "memory",
-        "storage",
-        "calldata",
-      ]);
       let identifier: string | undefined;
       let identifierStart = -1;
       let identifierTokenIndex = -1;
-      const original = stripInline(line);
       for (let t = 1; t < tokens.length; t++) {
         const tok = tokens[t];
         const isModifier = modifierKeywords.has(tok.toLowerCase());

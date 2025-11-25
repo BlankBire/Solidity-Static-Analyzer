@@ -92,6 +92,7 @@ export function analyzeText(
   let tree: any = undefined;
   // commentRanges and ignoredRanges will be filled if AST parsing succeeds
   let commentRanges: Array<[number, number]> = [];
+  let stringLiteralRanges: Array<[number, number]> = [];
   let ignoredRanges: Array<[number, number]> = [];
   // Theo dõi các identifier bị thiếu kiểu để cảnh báo khi được sử dụng ở các dòng sau
   const missingTypeIdentifiers = new Set<string>();
@@ -123,18 +124,26 @@ export function analyzeText(
       parser.setLanguage(SolidityLang);
       tree = parser.parse(content);
 
-      // Collect comment node ranges
+      // Collect comment and string literal node ranges
       commentRanges = [];
-      const collectComments = (node: any) => {
+      stringLiteralRanges = [];
+      const collectTrivia = (node: any) => {
         if (!node) return;
         const t = String(node.type).toLowerCase();
         if (t.includes("comment")) {
           commentRanges.push([node.startIndex, node.endIndex]);
         }
+        if (
+          t.includes("string_literal") ||
+          t.includes("unicode_string") ||
+          t.includes("hex_string")
+        ) {
+          stringLiteralRanges.push([node.startIndex, node.endIndex]);
+        }
         const kids = node.namedChildren || node.children || [];
-        for (const c of kids) collectComments(c);
+        for (const c of kids) collectTrivia(c);
       };
-      if (tree && tree.rootNode) collectComments(tree.rootNode);
+      if (tree && tree.rootNode) collectTrivia(tree.rootNode);
 
       // Collect ranges to ignore for parentheses checks (e.g., return/emit statements)
       const ignoreNodeTypes = new Set(["return_statement", "emit_statement"]);
@@ -463,6 +472,7 @@ export function analyzeText(
         tree,
         commentRanges,
         ignoredRanges,
+        stringLiteralRanges,
         declaredIdentifiers,
         pushFinding
       );

@@ -24,6 +24,7 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
     let tree = undefined;
     // commentRanges and ignoredRanges will be filled if AST parsing succeeds
     let commentRanges = [];
+    let stringLiteralRanges = [];
     let ignoredRanges = [];
     // Theo dõi các identifier bị thiếu kiểu để cảnh báo khi được sử dụng ở các dòng sau
     const missingTypeIdentifiers = new Set();
@@ -44,21 +45,27 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
             parser = new Parser();
             parser.setLanguage(SolidityLang);
             tree = parser.parse(content);
-            // Collect comment node ranges
+            // Collect comment and string literal node ranges
             commentRanges = [];
-            const collectComments = (node) => {
+            stringLiteralRanges = [];
+            const collectTrivia = (node) => {
                 if (!node)
                     return;
                 const t = String(node.type).toLowerCase();
                 if (t.includes("comment")) {
                     commentRanges.push([node.startIndex, node.endIndex]);
                 }
+                if (t.includes("string_literal") ||
+                    t.includes("unicode_string") ||
+                    t.includes("hex_string")) {
+                    stringLiteralRanges.push([node.startIndex, node.endIndex]);
+                }
                 const kids = node.namedChildren || node.children || [];
                 for (const c of kids)
-                    collectComments(c);
+                    collectTrivia(c);
             };
             if (tree && tree.rootNode)
-                collectComments(tree.rootNode);
+                collectTrivia(tree.rootNode);
             // Collect ranges to ignore for parentheses checks (e.g., return/emit statements)
             const ignoreNodeTypes = new Set(["return_statement", "emit_statement"]);
             ignoredRanges = [];
@@ -361,7 +368,7 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
     if (rules.missingParentheses) {
         try {
             const { runParenthesesGlobal } = require("./rules/syntax");
-            runParenthesesGlobal(content, tree, commentRanges, ignoredRanges, declaredIdentifiers, pushFinding);
+            runParenthesesGlobal(content, tree, commentRanges, ignoredRanges, stringLiteralRanges, declaredIdentifiers, pushFinding);
         }
         catch { }
     }

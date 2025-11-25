@@ -54,6 +54,32 @@ export function runSyntaxRulesSingleLine(
     if (RESERVED_MISSING_TYPE_KEYWORDS.has(name.toLowerCase())) return;
     missingIds.add(name);
   };
+  const stringSegments = (() => {
+    const spans: Array<[number, number]> = [];
+    let currentQuote: string | null = null;
+    let startIdx = -1;
+    for (let i = 0; i < line.length; i += 1) {
+      const ch = line[i];
+      const prev = i > 0 ? line[i - 1] : "";
+      const next = i + 1 < line.length ? line[i + 1] : "";
+      if (!currentQuote) {
+        if (ch === "/" && next === "/") {
+          break; // rest of line is comment, no string spans needed
+        }
+        if (ch === '"' || ch === "'") {
+          currentQuote = ch;
+          startIdx = i;
+        }
+      } else if (ch === currentQuote && prev !== "\\") {
+        spans.push([startIdx, i + 1]);
+        currentQuote = null;
+        startIdx = -1;
+      }
+    }
+    return spans;
+  })();
+  const isInsideString = (idx: number) =>
+    stringSegments.some(([s, e]) => idx >= s && idx < e);
   // 5. MISSING_SEMICOLON
   if (config.missingSemicolon) {
     const trimmedLine = line.trim();
@@ -248,6 +274,7 @@ export function runSyntaxRulesSingleLine(
         while ((m = funcCallRx.exec(line)) !== null) {
           const name = m[2];
           const nameIdx = m.index + (m[1] ? m[1].length : 0);
+          if (isInsideString(nameIdx)) continue;
           const after = line.slice(nameIdx + name.length);
           const nextParen = after.indexOf("(");
           const nextSemi = after.indexOf(";");
@@ -717,6 +744,7 @@ export function runParenthesesGlobal(
   tree: any,
   commentRanges: Array<[number, number]>,
   ignoredRanges: Array<[number, number]>,
+  stringRanges: Array<[number, number]>,
   declaredIdentifiers: Set<string>,
   pushFinding: PushFinding
 ): void {
@@ -772,7 +800,8 @@ export function runParenthesesGlobal(
   for (let p = 0; p < text.length; p += 1) {
     const ch = text[p];
     const inComment = commentRanges.some(([s, e]) => p >= s && p < e);
-    if (inComment) {
+    const inString = stringRanges.some(([s, e]) => p >= s && p < e);
+    if (inComment || inString) {
       if (ch === "\n") {
         lineIdx += 1;
         colIdx = 0;
@@ -866,6 +895,12 @@ export function runMissingReturnAst(
 ): void {
   if (!tree) return;
   try {
+    const indexToLineCol = (idx: number) => {
+      const before = content.slice(0, idx).split(/\r?\n/);
+      const line = before.length - 1;
+      const column = before[before.length - 1]?.length ?? 0;
+      return { line, column };
+    };
     const hasReturnInNode = (node: any): boolean => {
       if (!node) return false;
       if (node.type === "return_statement") return true;
@@ -874,6 +909,71 @@ export function runMissingReturnAst(
         if (hasReturnInNode(c)) return true;
       }
       return false;
+    };
+    const extractReturnNames = (fnNode: any): string[] => {
+      const nodeText = content.slice(fnNode.startIndex, fnNode.endIndex);
+      const match = nodeText.match(/returns\s*\(([^)]*)\)/i);
+      if (!match) return [];
+      const inner = match[1];
+      return inner
+        .split(",")
+        .map((seg) => seg.trim())
+        .filter(Boolean)
+        .map((seg) => {
+          const parts = seg.split(/\s+/);
+          const candidate = parts[parts.length - 1];
+          return /^[A-Za-z_][A-Za-z0-9_]*$/.test(candidate) ? candidate : "";
+        })
+        .filter(Boolean);
+    };
+    const findBodyNode = (fnNode: any): any | undefined => {
+      const kids = fnNode.namedChildren || fnNode.children || [];
+      return kids.find((c: any) => {
+        const t = String(c.type);
+        return t === "function_body" || t === "block";
+      });
+    };
+    const conditionalContainers = new Set([
+      "if_statement",
+      "while_statement",
+      "do_statement",
+      "conditional_expression",
+      "switch_statement",
+      "case_clause",
+      "default_clause",
+      "try_statement",
+      "catch_clause",
+    ]);
+    const recordAssignments = (
+      node: any,
+      insideConditional: boolean,
+      returnNames: Set<string>,
+      unconditional: Set<string>
+    ) => {
+      if (!node) return;
+      const t = String(node.type);
+      const isConditional = conditionalContainers.has(t);
+      if (t === "assignment_expression") {
+        const leftNode =
+          typeof node.childForFieldName === "function"
+            ? node.childForFieldName("left")
+            : node.namedChildren && node.namedChildren[0];
+        if (leftNode) {
+          const leftText = content.slice(
+            leftNode.startIndex,
+            leftNode.endIndex
+          );
+          const trimmed = leftText.trim();
+          if (returnNames.has(trimmed) && !insideConditional) {
+            unconditional.add(trimmed);
+          }
+        }
+      }
+      const kids = node.namedChildren || node.children || [];
+      const nextInside = insideConditional || isConditional;
+      for (const c of kids) {
+        recordAssignments(c, nextInside, returnNames, unconditional);
+      }
     };
     const walk = (node: any) => {
       if (!node) return;
@@ -884,15 +984,91 @@ export function runMissingReturnAst(
         const nodeText = content.slice(node.startIndex, node.endIndex);
         if (/returns\s*\(/i.test(nodeText)) {
           if (!hasReturnInNode(node)) {
-            const pos = node.startPosition || { row: 0, column: 0 };
-            pushFinding(
-              pos.row,
-              pos.column,
-              pos.column + 1,
-              "Missing return statement in function with return type.",
-              "MISSING_RETURN",
-              vscode.DiagnosticSeverity.Error
-            );
+            const bodyNode = findBodyNode(node);
+            if (!bodyNode) {
+              const pos = node.startPosition || { row: 0, column: 0 };
+              pushFinding(
+                pos.row,
+                pos.column,
+                pos.column + 1,
+                "Missing return statement in function with return type.",
+                "MISSING_RETURN",
+                vscode.DiagnosticSeverity.Error
+              );
+            } else {
+              const returnNames = extractReturnNames(node);
+              let shouldReport = true;
+              if (returnNames.length > 0) {
+                const returnSet = new Set(returnNames);
+                const unconditionalAssignments = new Set<string>();
+                recordAssignments(
+                  bodyNode,
+                  false,
+                  returnSet,
+                  unconditionalAssignments
+                );
+                const allCovered = returnNames.every((name) =>
+                  unconditionalAssignments.has(name)
+                );
+                if (allCovered) {
+                  shouldReport = false;
+                }
+              }
+              if (shouldReport) {
+                const highlight = (() => {
+                  const returnsMatch = nodeText.match(/returns\s*\(/i);
+                  if (returnsMatch && returnsMatch.index !== undefined) {
+                    const start = node.startIndex + returnsMatch.index;
+                    return {
+                      start,
+                      end: start + returnsMatch[0].length,
+                    };
+                  }
+                  const nameMatch = nodeText.match(
+                    /\bfunction\b\s+([A-Za-z_][A-Za-z0-9_]*)/
+                  );
+                  if (nameMatch && nameMatch[1]) {
+                    const nameIdx = nodeText.indexOf(
+                      nameMatch[1],
+                      nameMatch.index
+                    );
+                    if (nameIdx >= 0) {
+                      const start = node.startIndex + nameIdx;
+                      return {
+                        start,
+                        end: start + nameMatch[1].length,
+                      };
+                    }
+                  }
+                  return {
+                    start: node.startIndex,
+                    end: node.startIndex + 1,
+                  };
+                })();
+                const startPos = indexToLineCol(highlight.start);
+                const endPos = indexToLineCol(highlight.end);
+                if (startPos.line === endPos.line) {
+                  pushFinding(
+                    startPos.line,
+                    startPos.column,
+                    endPos.column,
+                    "Missing return statement in function with return type.",
+                    "MISSING_RETURN",
+                    vscode.DiagnosticSeverity.Error
+                  );
+                } else {
+                  const pos = node.startPosition || { row: 0, column: 0 };
+                  pushFinding(
+                    pos.row,
+                    pos.column,
+                    pos.column + 1,
+                    "Missing return statement in function with return type.",
+                    "MISSING_RETURN",
+                    vscode.DiagnosticSeverity.Error
+                  );
+                }
+              }
+            }
           }
         }
       }
