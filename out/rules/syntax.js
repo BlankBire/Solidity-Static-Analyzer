@@ -107,11 +107,33 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
             return Math.max(0, idx);
         };
         // Simple declarations missing semicolon
-        const typeKeywordPattern = /^(?:uint\d*|int\d*|uint|int|address|bool|string|bytes\d*|bytes|mapping\s*\()/i;
+        const basicTypePattern = /^(?:uint\d*|int\d*|uint|int|address|bool|string|bytes\d*|bytes)\b/i;
+        const mappingTypePattern = /^mapping\s*\(/i;
         const lineForDeclCheck = stripInlineComments(line).trim();
-        if (typeKeywordPattern.test(lineForDeclCheck) &&
+        if ((basicTypePattern.test(lineForDeclCheck) ||
+            mappingTypePattern.test(lineForDeclCheck)) &&
             !lineForDeclCheck.includes(" function ") &&
             !lineForDeclCheck.endsWith(";")) {
+            const previousCodeLine = (() => {
+                for (let j = lineIndex - 1; j >= 0; j -= 1) {
+                    const prev = stripInlineComments(lines[j] ?? "").trim();
+                    if (prev === "")
+                        continue;
+                    return prev;
+                }
+                return "";
+            })();
+            if (/\b(function|modifier|constructor)\b/i.test(previousCodeLine) ||
+                /^(?:contract|interface|library)\b/i.test(lineForDeclCheck) ||
+                lineForDeclCheck.endsWith("{")) {
+                // Part of a multi-line function signature; skip.
+                return;
+            }
+            const lastChar = trimmedLine.slice(-1);
+            if (lastChar === "(" || lastChar === "" || lastChar === ":") {
+                // Likely mid-signature (parameters/modifiers).
+                return;
+            }
             const idx = getLastCodeCharIndex(line);
             pushFinding(lineIndex, idx, idx + 1, "Missing semicolon at end of statement.", "MISSING_SEMICOLON", vscode.DiagnosticSeverity.Error);
         }
@@ -162,11 +184,61 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
         }
         // Single identifier dangling
         const singleIdentifierPattern = /^\s*[A-Za-z_][A-Za-z0-9_]*\s*$/;
+        const standaloneAllowed = new Set([
+            "public",
+            "private",
+            "internal",
+            "external",
+            "view",
+            "pure",
+            "payable",
+            "virtual",
+            "override",
+            "immutable",
+            "returns",
+            "memory",
+            "storage",
+            "calldata",
+        ]);
         if (singleIdentifierPattern.test(stripInlineComments(trimmedLine)) &&
             !isCommentOrBlank(trimmedLine)) {
-            if (!/^\s*(function|modifier|event|struct|enum|contract|interface|library|import|pragma|using|constructor)\b/i.test(trimmedLine)) {
-                const idx = getLastCodeCharIndex(line);
-                pushFinding(lineIndex, idx, idx + 1, "Missing semicolon at end of statement.", "MISSING_SEMICOLON", vscode.DiagnosticSeverity.Error);
+            const trimmedLower = trimmedLine.toLowerCase();
+            const shouldSkipSingleIdentifier = (() => {
+                if (standaloneAllowed.has(trimmedLower)) {
+                    // Likely a visibility/modifier line broken across multiple lines.
+                    return true;
+                }
+                const prevCodeLine = (() => {
+                    for (let j = lineIndex - 1; j >= 0; j -= 1) {
+                        const prev = stripInlineComments(lines[j] ?? "").trim();
+                        if (prev === "")
+                            continue;
+                        return prev;
+                    }
+                    return "";
+                })();
+                const nextCodeLine = (() => {
+                    for (let k = lineIndex + 1; k < lines.length; k += 1) {
+                        const next = stripInlineComments(lines[k] ?? "").trim();
+                        if (next === "")
+                            continue;
+                        return next;
+                    }
+                    return "";
+                })();
+                if (/\b(function|modifier|constructor)\b/i.test(prevCodeLine) ||
+                    /[){};]$/.test(prevCodeLine) ||
+                    /^returns\b/i.test(nextCodeLine)) {
+                    // Previous line already looks like the start of a declaration.
+                    return true;
+                }
+                return false;
+            })();
+            if (!shouldSkipSingleIdentifier) {
+                if (!/^\s*(function|modifier|event|struct|enum|contract|interface|library|import|pragma|using|constructor)\b/i.test(trimmedLine)) {
+                    const idx = getLastCodeCharIndex(line);
+                    pushFinding(lineIndex, idx, idx + 1, "Missing semicolon at end of statement.", "MISSING_SEMICOLON", vscode.DiagnosticSeverity.Error);
+                }
             }
         }
     }
@@ -748,8 +820,8 @@ function runMissingReturnAst(content, tree, pushFinding) {
                     if (!hasReturnInNode(node)) {
                         const bodyNode = findBodyNode(node);
                         if (!bodyNode) {
-                            const pos = node.startPosition || { row: 0, column: 0 };
-                            pushFinding(pos.row, pos.column, pos.column + 1, "Missing return statement in function with return type.", "MISSING_RETURN", vscode.DiagnosticSeverity.Error);
+                            // Function declaration without body (e.g., interface or abstract contract).
+                            return;
                         }
                         else {
                             const returnNames = extractReturnNames(node);
