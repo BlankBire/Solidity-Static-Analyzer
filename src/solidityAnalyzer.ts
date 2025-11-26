@@ -39,6 +39,8 @@ export type AnalyzerRules = {
   msgSenderTransfer: boolean;
   lowLevelCallNoData: boolean;
   uncheckedLowLevelCall: boolean;
+  tryReturnShadowing: boolean;
+  unusedTryReturnVariable: boolean;
   // Pragma Rules - Cảnh báo thiếu license hoặc version
   missingLicense: boolean;
   missingVersion: boolean;
@@ -456,6 +458,8 @@ export function analyzeText(
           msgSenderTransfer: !!rules.msgSenderTransfer,
           lowLevelCallNoData: !!rules.lowLevelCallNoData,
           uncheckedLowLevelCall: !!rules.uncheckedLowLevelCall,
+          tryReturnShadowing: !!rules.tryReturnShadowing,
+          unusedTryReturnVariable: !!rules.unusedTryReturnVariable,
           legacyFallbackFunction: !!rules.legacyFallbackFunction,
         },
         pushFinding

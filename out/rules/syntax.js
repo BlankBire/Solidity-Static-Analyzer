@@ -346,8 +346,7 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
                     if (/^(?:uint\d*|int\d*|address|bool|string|bytes\d*|bytes|mapping)\b/i.test(line.trim()))
                         continue;
                     const afterNameTrim = after.trimLeft();
-                    if (afterNameTrim.startsWith(":") ||
-                        afterNameTrim.startsWith("="))
+                    if (afterNameTrim.startsWith(":") || afterNameTrim.startsWith("="))
                         continue;
                     const nextTokenMatch = afterNameTrim.match(/^([A-Za-z_][A-Za-z0-9_]*)/);
                     if (nextTokenMatch) {
@@ -786,9 +785,20 @@ function runMissingReturnAst(content, tree, pushFinding) {
             }
             return false;
         };
-        const extractReturnNames = (fnNode) => {
-            const nodeText = content.slice(fnNode.startIndex, fnNode.endIndex);
-            const match = nodeText.match(/returns\s*\(([^)]*)\)/i);
+        const getReturnParametersNode = (fnNode) => {
+            if (typeof fnNode.childForFieldName === "function") {
+                const explicit = fnNode.childForFieldName("return_parameters");
+                if (explicit)
+                    return explicit;
+            }
+            const kids = fnNode.namedChildren || fnNode.children || [];
+            return kids.find((c) => String(c.type) === "return_parameters");
+        };
+        const extractReturnNames = (returnParamsNode) => {
+            if (!returnParamsNode)
+                return [];
+            const nodeText = content.slice(returnParamsNode.startIndex, returnParamsNode.endIndex);
+            const match = nodeText.match(/\(([^)]*)\)/);
             if (!match)
                 return [];
             const inner = match[1];
@@ -850,7 +860,8 @@ function runMissingReturnAst(content, tree, pushFinding) {
             if (node.type === "function_definition" ||
                 node.type === "function_declaration") {
                 const nodeText = content.slice(node.startIndex, node.endIndex);
-                if (/returns\s*\(/i.test(nodeText)) {
+                const returnParamsNode = getReturnParametersNode(node);
+                if (returnParamsNode) {
                     if (!hasReturnInNode(node)) {
                         const bodyNode = findBodyNode(node);
                         if (!bodyNode) {
@@ -858,7 +869,7 @@ function runMissingReturnAst(content, tree, pushFinding) {
                             return;
                         }
                         else {
-                            const returnNames = extractReturnNames(node);
+                            const returnNames = extractReturnNames(returnParamsNode);
                             let shouldReport = true;
                             if (returnNames.length > 0) {
                                 const returnSet = new Set(returnNames);
@@ -871,12 +882,10 @@ function runMissingReturnAst(content, tree, pushFinding) {
                             }
                             if (shouldReport) {
                                 const highlight = (() => {
-                                    const returnsMatch = nodeText.match(/returns\s*\(/i);
-                                    if (returnsMatch && returnsMatch.index !== undefined) {
-                                        const start = node.startIndex + returnsMatch.index;
+                                    if (returnParamsNode) {
                                         return {
-                                            start,
-                                            end: start + returnsMatch[0].length,
+                                            start: returnParamsNode.startIndex,
+                                            end: returnParamsNode.endIndex,
                                         };
                                     }
                                     const nameMatch = nodeText.match(/\bfunction\b\s+([A-Za-z_][A-Za-z0-9_]*)/);

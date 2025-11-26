@@ -359,6 +359,8 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
                 msgSenderTransfer: !!rules.msgSenderTransfer,
                 lowLevelCallNoData: !!rules.lowLevelCallNoData,
                 uncheckedLowLevelCall: !!rules.uncheckedLowLevelCall,
+                tryReturnShadowing: !!rules.tryReturnShadowing,
+                unusedTryReturnVariable: !!rules.unusedTryReturnVariable,
                 legacyFallbackFunction: !!rules.legacyFallbackFunction,
             }, pushFinding);
         }

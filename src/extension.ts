@@ -137,6 +137,11 @@ function runAnalysis(document: vscode.TextDocument) {
       "rules.uncheckedLowLevelCall",
       true
     ),
+    tryReturnShadowing: config.get<boolean>("rules.tryReturnShadowing", true),
+    unusedTryReturnVariable: config.get<boolean>(
+      "rules.unusedTryReturnVariable",
+      true
+    ),
     // Pragma rules
     missingLicense: config.get<boolean>("rules.missingLicense", true),
     missingVersion: config.get<boolean>("rules.missingVersion", true),

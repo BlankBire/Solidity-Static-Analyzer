@@ -147,6 +147,8 @@ function runAnalysis(document) {
         msgSenderTransfer: config.get("rules.msgSenderTransfer", true),
         lowLevelCallNoData: config.get("rules.lowLevelCallNoData", true),
         uncheckedLowLevelCall: config.get("rules.uncheckedLowLevelCall", true),
+        tryReturnShadowing: config.get("rules.tryReturnShadowing", true),
+        unusedTryReturnVariable: config.get("rules.unusedTryReturnVariable", true),
         // Pragma rules
         missingLicense: config.get("rules.missingLicense", true),
         missingVersion: config.get("rules.missingVersion", true),
