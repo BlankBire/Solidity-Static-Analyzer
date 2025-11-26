@@ -34,6 +34,55 @@ const RESERVED_MISSING_TYPE_KEYWORDS = new Set([
   "_",
 ]);
 
+const CALL_MODIFIER_KEYWORDS = new Set([
+  "public",
+  "private",
+  "internal",
+  "external",
+  "view",
+  "pure",
+  "payable",
+  "constant",
+  "immutable",
+  "memory",
+  "storage",
+  "calldata",
+]);
+
+const CALL_TYPE_KEYWORDS = new Set([
+  "bool",
+  "string",
+  "address",
+  "bytes",
+  "int",
+  "uint",
+  "int256",
+  "uint256",
+]);
+
+const CALL_POST_TYPE_KEYWORDS = new Set([
+  "storage",
+  "memory",
+  "calldata",
+  "payable",
+  "view",
+  "pure",
+  "returns",
+  "virtual",
+  "override",
+  "immutable",
+]);
+
+const CALL_RESERVED_NAMES = new Set([
+  "return",
+  "emit",
+  "require",
+  "assert",
+  "revert",
+  "break",
+  "continue",
+]);
+
 /** Per-line syntax checks excluding braces/paren global passes */
 export function runSyntaxRulesSingleLine(
   line: string,
@@ -320,42 +369,21 @@ export function runSyntaxRulesSingleLine(
       if (!declOrKeyword.test(line) && !stmtKeywordRx.test(line)) {
         const funcCallRx =
           /(^|\s)([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)(?:\s+)([A-Za-z_0-9`"'\[\{])/g;
-        const modifierKeywords = new Set([
-          "public",
-          "private",
-          "internal",
-          "external",
-          "view",
-          "pure",
-          "payable",
-          "constant",
-          "immutable",
-          "memory",
-          "storage",
-          "calldata",
-        ]);
-        const reservedNames = new Set([
-          "return",
-          "emit",
-          "require",
-          "assert",
-          "revert",
-          "break",
-          "continue",
-        ]);
         let m: RegExpExecArray | null;
         while ((m = funcCallRx.exec(line)) !== null) {
           const name = m[2];
           const nameIdx = m.index + (m[1] ? m[1].length : 0);
           if (isInsideString(nameIdx)) continue;
+          const nameLower = name.toLowerCase();
           const after = line.slice(nameIdx + name.length);
           const nextParen = after.indexOf("(");
           const nextSemi = after.indexOf(";");
           if (nextParen >= 0 && (nextSemi === -1 || nextParen < nextSemi)) {
             continue; // has parentheses — OK
           }
-          if (modifierKeywords.has(name.toLowerCase())) continue;
-          if (reservedNames.has(name.toLowerCase())) continue;
+          if (CALL_MODIFIER_KEYWORDS.has(nameLower)) continue;
+          if (CALL_RESERVED_NAMES.has(nameLower)) continue;
+          if (CALL_TYPE_KEYWORDS.has(nameLower)) continue;
           const prefix = line.slice(0, nameIdx);
           if (prefix.indexOf(")") !== -1) continue; // likely declaration tail
           if (
@@ -365,8 +393,20 @@ export function runSyntaxRulesSingleLine(
           )
             continue;
           const afterNameTrim = after.trimLeft();
-          if (afterNameTrim.startsWith(":") || afterNameTrim.startsWith("= "))
+          if (afterNameTrim.startsWith(":") || afterNameTrim.startsWith("="))
             continue;
+          const nextTokenMatch = afterNameTrim.match(
+            /^([A-Za-z_][A-Za-z0-9_]*)/
+          );
+          if (nextTokenMatch) {
+            const nextWord = nextTokenMatch[1].toLowerCase();
+            if (
+              CALL_POST_TYPE_KEYWORDS.has(nextWord) ||
+              CALL_TYPE_KEYWORDS.has(nextWord)
+            ) {
+              continue;
+            }
+          }
 
           const lineEndsCallish = /[;,)\]}\s]$/.test(line) || /;/.test(line);
           if (lineEndsCallish) {
