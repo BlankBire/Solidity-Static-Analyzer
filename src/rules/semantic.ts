@@ -9,6 +9,8 @@ export interface SemanticRuleToggles {
   lowLevelCallNoData: boolean;
   uncheckedLowLevelCall: boolean;
   legacyFallbackFunction: boolean;
+  tryReturnShadowing: boolean;
+  unusedTryReturnVariable: boolean;
 }
 
 type PushFinding = (
@@ -154,9 +156,98 @@ export function runSemanticRulesAst(
     walk(tree.rootNode);
     return result;
   };
+  const contracts = collectContracts();
+
+  const contractStateVariables = new Map<any, Set<string>>();
+  for (const contractNode of contracts) {
+    const names = new Set<string>();
+    const bodyNode = (contractNode.namedChildren || []).find(
+      (child: any) => child.type === "contract_body"
+    );
+    const members = bodyNode?.namedChildren || [];
+    for (const member of members) {
+      if (member.type === "state_variable_declaration") {
+        for (const child of member.namedChildren || []) {
+          if (child.type === "identifier") {
+            const name = getNodeText(content, child).trim();
+            if (name) {
+              names.add(name);
+            }
+          }
+        }
+      }
+    }
+    contractStateVariables.set(contractNode, names);
+  }
+
+  const functionParamCache = new Map<any, Set<string>>();
+  const getFunctionParamNames = (fnNode: any): Set<string> => {
+    if (!fnNode) return new Set<string>();
+    if (functionParamCache.has(fnNode)) {
+      return functionParamCache.get(fnNode)!;
+    }
+    const paramNames = new Set<string>();
+    for (const child of fnNode.namedChildren || []) {
+      if (child.type === "parameter") {
+        const idNode = (child.namedChildren || []).find(
+          (c: any) => c.type === "identifier"
+        );
+        if (idNode) {
+          const name = getNodeText(content, idNode).trim();
+          if (name) paramNames.add(name);
+        }
+      }
+    }
+    functionParamCache.set(fnNode, paramNames);
+    return paramNames;
+  };
+
+  const findEnclosingContract = (node: any): any | undefined => {
+    let current = node;
+    while (current) {
+      if (contractStateVariables.has(current)) {
+        return current;
+      }
+      current = current.parent;
+    }
+    return undefined;
+  };
+
+  const functionNodeTypes = new Set([
+    "function_definition",
+    "function_declaration",
+    "constructor_definition",
+    "modifier_definition",
+  ]);
+
+  const findEnclosingFunction = (node: any): any | undefined => {
+    let current = node;
+    while (current) {
+      if (functionNodeTypes.has(String(current.type))) {
+        return current;
+      }
+      current = current.parent;
+    }
+    return undefined;
+  };
+
+  const identifierUsedInNode = (node: any, target: string): boolean => {
+    if (!node) return false;
+    if (node.type === "identifier") {
+      const text = getNodeText(content, node).trim();
+      if (text === target) {
+        return true;
+      }
+    }
+    for (const child of node.namedChildren || []) {
+      if (identifierUsedInNode(child, target)) {
+        return true;
+      }
+    }
+    return false;
+  };
 
   if (toggles.legacyConstructor) {
-    const contracts = collectContracts();
     const enforceLegacy =
       versionAtLeast(versionInfo, 0, 5) ||
       (!!versionInfo && versionInfo.major >= 1);
@@ -488,6 +579,75 @@ export function runSemanticRulesAst(
                   vscode.DiagnosticSeverity.Error
                 );
               }
+            }
+          }
+        }
+      }
+    }
+
+    if (
+      node.type === "try_statement" &&
+      (toggles.tryReturnShadowing || toggles.unusedTryReturnVariable)
+    ) {
+      const returnParams = (node.namedChildren || []).filter(
+        (child: any) => child.type === "parameter"
+      );
+      if (returnParams.length > 0) {
+        const successBlock = (node.namedChildren || []).find(
+          (child: any) => child.type === "block_statement"
+        );
+        const contractNode = findEnclosingContract(node);
+        const contractVars = contractNode
+          ? contractStateVariables.get(contractNode) || new Set<string>()
+          : new Set<string>();
+        const functionNode = findEnclosingFunction(node);
+        const fnParamNames = functionNode
+          ? getFunctionParamNames(functionNode)
+          : new Set<string>();
+
+        for (const paramNode of returnParams) {
+          const idNode = (paramNode.namedChildren || []).find(
+            (c: any) => c.type === "identifier"
+          );
+          if (!idNode) continue;
+          const name = getNodeText(content, idNode).trim();
+          if (!name) continue;
+
+          if (toggles.tryReturnShadowing) {
+            let shadowTarget = "";
+            if (fnParamNames.has(name)) {
+              shadowTarget = "function parameter";
+            } else if (contractVars.has(name)) {
+              shadowTarget = "state variable";
+            }
+            if (shadowTarget) {
+              pushFinding(
+                idNode.startPosition.row,
+                idNode.startPosition.column,
+                idNode.endPosition.column,
+                `Try returns binding '${name}' shadows a ${shadowTarget} with the same name. Rename the try returns variable to avoid confusion.`,
+                "TRY_RETURN_SHADOWING",
+                vscode.DiagnosticSeverity.Warning
+              );
+            }
+          }
+
+          if (toggles.unusedTryReturnVariable) {
+            if (name.startsWith("_")) {
+              continue;
+            }
+            const isUsed = successBlock
+              ? identifierUsedInNode(successBlock, name)
+              : false;
+            if (!isUsed) {
+              pushFinding(
+                idNode.startPosition.row,
+                idNode.startPosition.column,
+                idNode.endPosition.column,
+                `Try returns binding '${name}' is never read inside the success block. Remove it or use the value inside the try block.`,
+                "UNUSED_TRY_RETURN",
+                vscode.DiagnosticSeverity.Warning
+              );
             }
           }
         }

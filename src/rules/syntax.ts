@@ -1023,9 +1023,23 @@ export function runMissingReturnAst(
       }
       return false;
     };
-    const extractReturnNames = (fnNode: any): string[] => {
-      const nodeText = content.slice(fnNode.startIndex, fnNode.endIndex);
-      const match = nodeText.match(/returns\s*\(([^)]*)\)/i);
+    const getReturnParametersNode = (fnNode: any): any | undefined => {
+      if (typeof fnNode.childForFieldName === "function") {
+        const explicit = fnNode.childForFieldName("return_parameters");
+        if (explicit) return explicit;
+      }
+      const kids = fnNode.namedChildren || fnNode.children || [];
+      return kids.find((c: any) => String(c.type) === "return_parameters");
+    };
+    const extractReturnNames = (
+      returnParamsNode: any | undefined
+    ): string[] => {
+      if (!returnParamsNode) return [];
+      const nodeText = content.slice(
+        returnParamsNode.startIndex,
+        returnParamsNode.endIndex
+      );
+      const match = nodeText.match(/\(([^)]*)\)/);
       if (!match) return [];
       const inner = match[1];
       return inner
@@ -1095,14 +1109,15 @@ export function runMissingReturnAst(
         node.type === "function_declaration"
       ) {
         const nodeText = content.slice(node.startIndex, node.endIndex);
-        if (/returns\s*\(/i.test(nodeText)) {
+        const returnParamsNode = getReturnParametersNode(node);
+        if (returnParamsNode) {
           if (!hasReturnInNode(node)) {
             const bodyNode = findBodyNode(node);
             if (!bodyNode) {
               // Function declaration without body (e.g., interface or abstract contract).
               return;
             } else {
-              const returnNames = extractReturnNames(node);
+              const returnNames = extractReturnNames(returnParamsNode);
               let shouldReport = true;
               if (returnNames.length > 0) {
                 const returnSet = new Set(returnNames);
@@ -1122,12 +1137,10 @@ export function runMissingReturnAst(
               }
               if (shouldReport) {
                 const highlight = (() => {
-                  const returnsMatch = nodeText.match(/returns\s*\(/i);
-                  if (returnsMatch && returnsMatch.index !== undefined) {
-                    const start = node.startIndex + returnsMatch.index;
+                  if (returnParamsNode) {
                     return {
-                      start,
-                      end: start + returnsMatch[0].length,
+                      start: returnParamsNode.startIndex,
+                      end: returnParamsNode.endIndex,
                     };
                   }
                   const nameMatch = nodeText.match(
