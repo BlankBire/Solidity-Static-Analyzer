@@ -48,7 +48,7 @@
 \maketitle
 
 \begin{abstract}
-Smart contracts underpin decentralized finance (DeFi) and Web3 applications, stewarding billions of dollars in value. Security defects in Solidity code can cause catastrophic losses. While standard development environments provide robust syntax highlighting and compilation checks, they often lack immediate feedback on security vulnerabilities. This leaves a blind spot during the coding phase, forcing developers to rely on slow, external audits later in the pipeline. This paper introduces \textbf{Solidify}, a Visual Studio Code extension that delivers real-time security static analysis directly inside the IDE. The tool adopts a hybrid strategy: it leverages \texttt{tree-sitter} to construct rich Abstract Syntax Trees (ASTs) while complementing them with high-performance regular expressions for rapid pattern checks. A modular rule architecture makes it straightforward to extend coverage across security, syntax, and naming conventions. Our evaluation on 20 real-world smart contracts compares Solidify against the standard Solidity extension by Juan Blanco. Results show that Solidify provides a significant leap in security detection capabilities ($F1 = 0.60$) compared to the Blanco's syntax-focused approach, while maintaining a superior analysis latency of 82 ms ($\pm$ 15 ms) versus the compilation-based feedback loop ($\sim 450$ ms). This demonstrates that integrating security awareness directly into the editor is both performant and essential for modern smart contract development.
+Smart contracts underpin decentralized finance (DeFi) and Web3 applications, stewarding billions of dollars in value. Security defects in Solidity code can cause catastrophic losses. While standard development environments provide robust syntax highlighting and compilation checks, they often lack immediate feedback on security vulnerabilities. This leaves a blind spot during the coding phase, forcing developers to rely on slow, external audits later in the pipeline. This paper introduces \textbf{Solidify}, a Visual Studio Code extension that delivers real-time security static analysis directly inside the IDE. The tool adopts a hybrid strategy: it leverages \texttt{tree-sitter} to construct rich Abstract Syntax Trees (ASTs) while complementing them with high-performance regular expressions for rapid pattern checks. A modular rule architecture makes it straightforward to extend coverage across security, syntax, and naming conventions. Our evaluation on 20 real-world smart contracts compares Solidify against the standard Solidity extension by Juan Blanco. Results show that Solidify provides a significant leap in security detection capabilities ($F1 = 0.90$) compared to the Blanco's syntax-focused approach ($F1 = 0.73$), achieving exceptional recall (0.99) while maintaining high precision (0.83). Although Solidify operates at a higher latency of 538 ms ($\pm$ 19 ms) compared to compilation-based feedback (2447 ms $\pm$ 139 ms), it delivers results approximately 4.5$\times$ faster. This demonstrates that integrating security awareness directly into the editor is both performant and essential for modern smart contract development.
 \end{abstract}
 
 \textbf{Keywords:} Smart Contracts, Solidity, Static Analysis, Blockchain Security, Visual Studio Code, Abstract Syntax Tree
@@ -171,7 +171,7 @@ We evaluate Solidify along two key dimensions: analysis latency and security det
 
 \subsection{Experimental Setup}
 
-\textbf{Dataset:} We collected 20 real-world Solidity smart contracts of varying size and complexity, sampled from popular open-source projects on GitHub. The contracts range from simple token implementations to complex DeFi protocols, ensuring diversity in code patterns and potential vulnerability types.
+\textbf{Dataset:} We collected 30 real-world Solidity smart contracts of varying size and complexity, sampled from popular open-source projects on GitHub. The contracts range from simple token implementations to complex DeFi protocols, ensuring diversity in code patterns and potential vulnerability types.
 
 \textbf{Baseline Configuration:} The baseline tool uses default \texttt{solc} compiler integration for diagnostics, representing the standard development experience for most Solidity developers.
 
@@ -185,10 +185,11 @@ We evaluate Solidify along two key dimensions: analysis latency and security det
         \toprule
         \textbf{Metric} & \textbf{Solidify} & \textbf{Blanco Extension} \\
         \midrule
-        Analysis Latency & 82ms ($\pm$ 15ms) & 450ms ($\pm$ 68ms) \\
-        Precision & 0.61 & 0.90* \\
-        Recall & 0.59 & 0.08 \\
-        F1 Score & 0.60 & 0.15 \\
+        Analysis Latency & 538ms ($\pm$ 19ms) & 2447ms ($\pm$ 139ms) \\
+        Precision & 0.83 & 1.00 \\
+        Recall & 0.99 & 0.58 \\
+        F1 Score & 0.90 & 0.73 \\
+        False Positive Rate & 0.17 & 0.00 \\
         \bottomrule
     \end{tabularx}
 \end{table}
@@ -197,7 +198,7 @@ We evaluate Solidify along two key dimensions: analysis latency and security det
 
 We measured the elapsed time from a keystroke event to the appearance of diagnostic feedback in the IDE interface. This metric directly impacts developer experience and workflow fluidity.
 
-Solidify achieves an average latency of \textbf{82 ms ($\pm$ 15 ms)}, whereas the Blanco extension averages \textbf{450 ms ($\pm$ 68 ms)}. The Blanco's reliance on triggering the Solidity compiler introduces significant overhead through process spawning, full parsing, and type checking. In contrast, Solidify's incremental \texttt{tree-sitter} parsing enables feedback delivery approximately 5$\times$ faster, ensuring the UI remains responsive and never interrupts the coding flow.
+Solidify achieves an average latency of \textbf{538 ms ($\pm$ 19 ms)}, whereas the Blanco extension averages \textbf{2447 ms ($\pm$ 139 ms)}. The Blanco's reliance on triggering the Solidity compiler introduces significant overhead through process spawning, full parsing, and type checking. In contrast, Solidify's incremental \texttt{tree-sitter} parsing enables feedback delivery approximately 4.5$\times$ faster, ensuring the UI remains responsive and never interrupts the coding flow.
 
 \begin{figure}[H]
     \centering
@@ -212,17 +213,17 @@ Solidify achieves an average latency of \textbf{82 ms ($\pm$ 15 ms)}, whereas th
             xtick={Solidify, Blanco Extension}, 
             ylabel={Latency (ms) - Lower is Better},
             ymin=0, 
-            ymax=600,
+            ymax=3000,
             grid=major,
             nodes near coords,
             every node near coords/.append style={font=\bfseries},
             bar shift=0pt 
         ]
         \addplot[fill=blue!60, draw=black] coordinates {
-            (Solidify, 82)
+            (Solidify, 538)
         };
         \addplot[fill=gray!60, draw=black] coordinates {
-            (Blanco Extension, 450)
+            (Blanco Extension, 2447)
         };
         \end{axis}
     \end{tikzpicture}
@@ -234,9 +235,9 @@ Solidify achieves an average latency of \textbf{82 ms ($\pm$ 15 ms)}, whereas th
 
 We evaluated both tools on their ability to identify known security vulnerabilities in our dataset, including reentrancy patterns, unchecked external calls, timestamp dependence, and unsafe authentication mechanisms.
 
-The Blanco tool, designed primarily for syntax correctness, demonstrates limited security awareness ($F1 = 0.15$). It successfully flags compilation warnings but misses most security-specific patterns. The high precision (0.90) reflects that most flagged issues are indeed problems, but these are predominantly syntax errors rather than security vulnerabilities, resulting in extremely low recall (0.08).
+The Blanco tool, designed primarily for syntax correctness, demonstrates strong precision (1.00) but limited recall (0.58), resulting in an $F1$ score of 0.73. While it successfully flags compilation warnings with zero false positives, it misses many security-specific patterns. The perfect precision reflects that flagged issues are indeed problems, but these are predominantly syntax errors rather than security vulnerabilities.
 
-Solidify substantially improves security detection capabilities, achieving an $F1$ score of \textbf{0.60} with balanced precision (0.61) and recall (0.59). While not matching the exhaustive coverage of offline audit tools like Slither or Manticore, Solidify represents a significant advancement over standard IDE capabilities, catching critical vulnerabilities during active development.
+Solidify substantially improves security detection capabilities, achieving an $F1$ score of \textbf{0.90} with high precision (0.83) and exceptional recall (0.99). The tool successfully catches nearly all security vulnerabilities in the dataset while maintaining acceptable false positive rates (0.17). While not matching the exhaustive coverage of offline audit tools like Slither or Manticore, Solidify represents a significant advancement over standard IDE capabilities, catching critical vulnerabilities during active development.
 
 \begin{figure}[H]
     \centering
@@ -247,7 +248,7 @@ Solidify substantially improves security detection capabilities, achieving an $F
             width=0.95\textwidth,
             height=7cm,
             enlarge x limits=0.15,
-            symbolic x coords={Precision, Recall, F1 Score},
+            symbolic x coords={Precision, Recall, F1 Score, False Positive Rate},
             xtick=data,
             ymin=0, ymax=1.0,
             ylabel={Score},
@@ -258,15 +259,17 @@ Solidify substantially improves security detection capabilities, achieving an $F
         ]
         
         \addplot[fill=blue!60, draw=black] coordinates {
-            (Precision,0.61) 
-            (Recall,0.59) 
-            (F1 Score,0.60) 
+            (Precision,0.83) 
+            (Recall,0.99) 
+            (F1 Score,0.90) 
+            (False Positive Rate,0.17)
         };
         
         \addplot[fill=gray!60, draw=black] coordinates {
-            (Precision,0.90) 
-            (Recall,0.08) 
-            (F1 Score,0.15) 
+            (Precision,1.00) 
+            (Recall,0.58) 
+            (F1 Score,0.73) 
+            (False Positive Rate,0.00)
         };
         
         \legend{Solidify, Blanco Extension}
@@ -280,7 +283,7 @@ Solidify substantially improves security detection capabilities, achieving an $F
 
 \subsection{Strengths}
 
-Our evaluation demonstrates that Solidify successfully addresses a critical gap in smart contract development tooling by bringing security-aware static analysis into the real-time IDE workflow without compromising performance. The hybrid AST-regex architecture proves particularly effective: \texttt{tree-sitter}'s incremental parsing delivers sub-100ms response times crucial for maintaining developer flow, while pattern-based rules catch common vulnerabilities instantly. This represents a paradigm shift from the traditional compile-check-fix cycle to continuous security feedback.
+Our evaluation demonstrates that Solidify successfully addresses a critical gap in smart contract development tooling by bringing security-aware static analysis into the real-time IDE workflow without compromising performance. The hybrid AST-regex architecture proves particularly effective: \texttt{tree-sitter}'s incremental parsing delivers sub-second response times crucial for maintaining developer flow, while pattern-based rules catch common vulnerabilities instantly. This represents a paradigm shift from the traditional compile-check-fix cycle to continuous security feedback.
 
 The tool's modular rule architecture offers significant practical advantages. Security patterns can be independently developed, tested, and deployed without modifying the core analysis engine. This extensibility ensures that Solidify can evolve alongside emerging vulnerability classes and Solidity language updates. Furthermore, by integrating directly into the developer's primary workspace, Solidify reduces context switching and lowers the barrier to security awareness---developers receive guidance at the moment they write potentially vulnerable code rather than discovering issues hours or days later during external audits.
 
@@ -288,11 +291,11 @@ The tool's modular rule architecture offers significant practical advantages. Se
 
 Despite these strengths, Solidify has several limitations that constrain its current capabilities. The most significant is limited semantic depth: our hybrid approach excels at pattern matching but cannot perform deep data-flow analysis or symbolic reasoning. Complex vulnerabilities requiring cross-function taint tracking or multi-transaction attack scenarios remain beyond the tool's detection scope. This means Solidify should complement, not replace, thorough security audits using tools like Slither or Manticore.
 
-The current rule coverage, while addressing common vulnerability patterns, is not exhaustive. Our evaluation focused on well-documented vulnerability classes, but the rapidly evolving DeFi ecosystem continuously produces novel attack vectors. The tool's effectiveness depends on rule maintenance and expansion, requiring ongoing community contribution or dedicated curation. Additionally, false positive rates, while acceptable at current precision levels (0.61), may cause alert fatigue if developers encounter frequent incorrect warnings. Balancing sensitivity with precision remains an ongoing challenge, particularly for rules that require semantic context our lightweight analysis cannot fully capture.
+The current rule coverage, while addressing common vulnerability patterns, is not exhaustive. Our evaluation focused on well-documented vulnerability classes, but the rapidly evolving DeFi ecosystem continuously produces novel attack vectors. The tool's effectiveness depends on rule maintenance and expansion, requiring ongoing community contribution or dedicated curation. Additionally, the false positive rate of 0.17, while reasonable for a real-time tool, may cause alert fatigue if developers encounter frequent incorrect warnings during active development. Balancing sensitivity with precision remains an ongoing challenge, particularly for rules that require semantic context our lightweight analysis cannot fully capture.
 
 \section{Conclusion}
 
-This paper presented Solidify, a real-time static analysis extension that integrates security intelligence directly into the Solidity development workflow within Visual Studio Code. Our primary contributions include a hybrid AST-regex analysis architecture that bypasses compilation overhead, a modular rule system enabling independent extension of security checks, and empirical validation demonstrating practical viability. Experimental results show that Solidify delivers diagnostic feedback 5$\times$ faster than the industry-standard extension (82 ms vs. 450 ms) while substantially improving security detection capabilities ($F1 = 0.60$ vs. $0.15$). These findings validate that shifting security analysis left to the earliest moment in the development lifecycle is both technically feasible and practically valuable for smart contract development.
+This paper presented Solidify, a real-time static analysis extension that integrates security intelligence directly into the Solidity development workflow within Visual Studio Code. Our primary contributions include a hybrid AST-regex analysis architecture that bypasses compilation overhead, a modular rule system enabling independent extension of security checks, and empirical validation demonstrating practical viability. Experimental results show that Solidify delivers diagnostic feedback 4.5$\times$ faster than the industry-standard extension (538 ms vs. 2447 ms) while substantially improving security detection capabilities ($F1 = 0.90$ vs. $0.73$). These findings validate that shifting security analysis left to the earliest moment in the development lifecycle is both technically feasible and practically valuable for smart contract development.
 
 However, several limitations present opportunities for future enhancement. To address the semantic depth gap, we plan to integrate lightweight data-flow analysis that can track variable states across function boundaries without full symbolic execution overhead. Expanding rule coverage will involve establishing a community-driven rule repository with standardized testing frameworks to ensure quality and reduce false positives. We also intend to incorporate machine learning-based pattern recognition to detect novel vulnerability classes that lack explicit rules. Finally, cross-platform support beyond VS Code (such as JetBrains IDEs and Vim) and integration with CI/CD pipelines will extend Solidify's reach across the entire development lifecycle. These enhancements will position Solidify as a comprehensive security companion for smart contract developers.
 
