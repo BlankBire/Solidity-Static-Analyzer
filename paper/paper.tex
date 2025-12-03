@@ -55,7 +55,7 @@
 \maketitle
 
 \begin{abstract}
-Smart contracts underpin decentralized finance (DeFi) and Web3 applications, stewarding billions of dollars in value. Security defects in Solidity code can cause catastrophic losses. While standard development environments provide robust syntax highlighting and compilation checks, they often lack immediate feedback on security vulnerabilities. This leaves a blind spot during the coding phase, forcing developers to rely on slow, external audits later in the pipeline. This paper introduces \textbf{Solidify}, a Visual Studio Code extension that delivers real-time security static analysis directly inside the IDE. The tool adopts a hybrid strategy: it leverages \texttt{tree-sitter} to construct rich Abstract Syntax Trees (ASTs) while complementing them with high-performance regular expressions for rapid pattern checks. A modular rule architecture makes it straightforward to extend coverage across security, syntax, and naming conventions. Our evaluation on 20 real-world smart contracts compares Solidify against the standard Solidity extension by Juan Blanco. Results show that Solidify provides a significant leap in security detection capabilities ($F1 = 0.90$) compared to the Blanco's syntax-focused approach ($F1 = 0.73$), achieving exceptional recall (0.99) while maintaining high precision (0.83). Although Solidify operates at a higher latency of 538 ms ($\pm$ 19 ms) compared to compilation-based feedback (2447 ms $\pm$ 139 ms), it delivers results approximately 4.5$\times$ faster. This demonstrates that integrating security awareness directly into the editor is both performant and essential for modern smart contract development.
+Smart contracts underpin decentralized finance (DeFi) and Web3 applications, stewarding billions of dollars in value. Security defects in Solidity code can cause catastrophic losses. While standard development environments provide robust syntax highlighting and compilation checks, they often lack immediate feedback on security vulnerabilities. This leaves a blind spot during the coding phase, forcing developers to rely on slow, external audits later in the pipeline. This paper introduces Solidify, a Visual Studio Code extension that delivers real-time security static analysis directly inside the IDE. The tool adopts a hybrid strategy: it leverages tree-sitter to construct rich Abstract Syntax Trees (ASTs) while complementing them with high-performance regular expressions for rapid pattern checks. A modular rule architecture makes it straightforward to extend coverage across security, syntax, and naming conventions. Our evaluation on 20 real-world smart contracts compares Solidify against the standard Solidity extension by Juan Blanco. Results show that Solidify provides a significant leap in security detection capabilities ($F1 = 0.90$) compared to the Blanco's syntax-focused approach ($F1 = 0.73$), achieving exceptional recall (0.99) while maintaining high precision (0.83). Although Solidify operates at a higher latency of 538 ms ($\pm$ 19 ms) compared to compilation-based feedback (2447 ms $\pm$ 139 ms), it delivers results approximately 4.5$\times$ faster. This demonstrates that integrating security awareness directly into the editor is both performant and essential for modern smart contract development.
 \end{abstract}
 
 \textbf{Keywords:} Smart Contracts, Solidity, Static Analysis, Blockchain Security, Visual Studio Code, Abstract Syntax Tree
@@ -66,27 +66,27 @@ The rise of blockchain technology ushered in a new era of decentralized applicat
 
 The stakes have never been higher. High-profile incidents such as the DAO hack (2016, \$50 million loss), the Parity wallet freeze (2017, \$280 million locked), and countless DeFi protocol exploits demonstrate that even well-funded projects with experienced teams fall victim to subtle security flaws. Each exploit erodes trust in the ecosystem and highlights a fundamental tension: developers must write flawless code on their first attempt, yet traditional development workflows offer minimal security guidance during the coding phase itself.
 
-Standard IDE tools, such as the widely used Solidity extension by Juan Blanco \cite{blanco2016}, have greatly improved the developer experience by providing syntax highlighting, snippet generation, and compilation integration. However, these tools generally focus on correctness rather than security. They typically rely on the \texttt{solc} compiler for diagnostics, which means feedback is constrained by compilation times and limited to compiler errors. A developer can write an entire reentrancy vulnerability, see no warnings in their editor, successfully compile the contract, and only discover the flaw days later during a manual audit or---worse---after deployment when attackers exploit it in production.
+Standard IDE tools, such as the widely used Solidity extension by Juan Blanco \cite{blanco2016}, have greatly improved the developer experience by providing syntax highlighting, snippet generation, and compilation integration. However, these tools generally focus on correctness rather than security. They typically rely on the solc compiler for diagnostics, which means feedback is constrained by compilation times and limited to compiler errors. A developer can write an entire reentrancy vulnerability, see no warnings in their editor, successfully compile the contract, and only discover the flaw days later during a manual audit or---worse---after deployment when attackers exploit it in production.
 
 This blind spot is not merely inconvenient; it is dangerous. Security analysis has traditionally been relegated to post-development phases: external audits, CI/CD pipeline checks, or manual review sessions. While tools like Slither \cite{feist2019}, Mythril \cite{mueller2018}, and Securify \cite{tsankov2018} provide powerful vulnerability detection, they operate outside the immediate development loop. Developers must context-switch away from their code, run separate analysis tools, interpret results, and then return to their editor to apply fixes. This workflow friction means security checks happen infrequently---often only before major deployments rather than continuously during development.
 
-We identify a critical gap: the lack of tools that raise security warnings with the same speed and convenience as syntax errors. Modern developers expect their IDEs to underline type mismatches in red as they type; why should critical security patterns like unchecked external calls or timestamp dependence be any different? To close this gap we built \textbf{Solidify}, a VS Code extension designed to be lightweight, responsive, and tightly integrated with the editor. Unlike standard extensions that wait for compilation, Solidify proactively scans for vulnerability patterns as the developer types, delivering security intelligence at the exact moment it is most valuable: during active code composition.
+We identify a critical gap: the lack of tools that raise security warnings with the same speed and convenience as syntax errors. Modern developers expect their IDEs to underline type mismatches in red as they type; why should critical security patterns like unchecked external calls or timestamp dependence be any different? To close this gap we built Solidify, a VS Code extension designed to be lightweight, responsive, and tightly integrated with the editor. Unlike standard extensions that wait for compilation, Solidify proactively scans for vulnerability patterns as the developer types, delivering security intelligence at the exact moment it is most valuable: during active code composition.
 
 Our main contributions are:
 \begin{itemize}
-    \item \textbf{Hybrid analysis architecture:} We present a design that combines AST-based reasoning with regex-based pattern detection to bypass the overhead of full compilation while maintaining detection accuracy.
-    \item \textbf{Modular rule system:} We architect the analyzer so that rules can be developed, maintained, and extended independently, enabling rapid adaptation to emerging vulnerability patterns.
-    \item \textbf{Comparative evaluation:} We demonstrate that Solidify significantly outperforms the standard IDE baseline in security metrics ($F1 = 0.90$ vs. $0.73$) while delivering feedback 4.5$\times$ faster (538 ms vs. 2447 ms), proving that real-time security analysis is both practical and essential.
+    \item Hybrid analysis architecture: We present a design that combines AST-based reasoning with regex-based pattern detection to bypass the overhead of full compilation while maintaining detection accuracy.
+    \item Modular rule system: We architect the analyzer so that rules can be developed, maintained, and extended independently, enabling rapid adaptation to emerging vulnerability patterns.
+    \item Comparative evaluation: We demonstrate that Solidify significantly outperforms the standard IDE baseline in security metrics ($F1 = 0.90$ vs. $0.73$) while delivering feedback 4.5$\times$ faster (538 ms vs. 2447 ms), proving that real-time security analysis is both practical and essential.
 \end{itemize}
 
 \section{Related Work}
 Security analysis of smart contracts has attracted significant research. Existing tools generally fall into three categories: Static Analysis, Dynamic/Symbolic Execution, and IDE Tooling.
 
-\textbf{Static Analysis Frameworks:} These tools inspect source code without execution. Slither \cite{feist2019} converts Solidity to an intermediate representation (SlithIR) to run data-flow and taint analysis. It is fast for a CI tool but too slow for keystroke-level feedback. Securify \cite{tsankov2018}, developed at ETH Zurich, employs formal verification using dependency patterns to prove compliance with security properties. While highly precise, Securify acts as a validator rather than a real-time assistant, requiring complete and compilable code to function effectively. SmartCheck \cite{tikhomirov2018} translates Solidity into an XML-based intermediate representation and applies XPath patterns to detect vulnerabilities, though it similarly requires complete compilation before analysis.
+Static Analysis Frameworks: These tools inspect source code without execution. Slither \cite{feist2019} converts Solidity to an intermediate representation (SlithIR) to run data-flow and taint analysis. It is fast for a CI tool but too slow for keystroke-level feedback. Securify \cite{tsankov2018}, developed at ETH Zurich, employs formal verification using dependency patterns to prove compliance with security properties. While highly precise, Securify acts as a validator rather than a real-time assistant, requiring complete and compilable code to function effectively. SmartCheck \cite{tikhomirov2018} translates Solidity into an XML-based intermediate representation and applies XPath patterns to detect vulnerabilities, though it similarly requires complete compilation before analysis.
 
-\textbf{Symbolic and Dynamic Analysis:} Mythril \cite{mueller2018} and Manticore \cite{mossberg2018} represent the heavyweight class of analysis. Mythril uses concolic analysis to explore attackable states. Manticore, developed by Trail of Bits, is a symbolic execution framework that can navigate complex execution paths to find deep logic bugs. ZEUS \cite{kalra2018} combines abstract interpretation with symbolic model checking to verify correctness and fairness properties of smart contracts. These tools are computationally expensive, often taking minutes or hours to run, making them suitable for final audits but impractical for the interactive development loop. Oyente \cite{luu2016}, one of the pioneering tools in this space, performs symbolic execution to detect common vulnerabilities such as transaction-ordering dependence and timestamp dependence, but similarly suffers from high computational overhead.
+Symbolic and Dynamic Analysis: Mythril \cite{mueller2018} and Manticore \cite{mossberg2018} represent the heavyweight class of analysis. Mythril uses concolic analysis to explore attackable states. Manticore, developed by Trail of Bits, is a symbolic execution framework that can navigate complex execution paths to find deep logic bugs. ZEUS \cite{kalra2018} combines abstract interpretation with symbolic model checking to verify correctness and fairness properties of smart contracts. These tools are computationally expensive, often taking minutes or hours to run, making them suitable for final audits but impractical for the interactive development loop. Oyente \cite{luu2016}, one of the pioneering tools in this space, performs symbolic execution to detect common vulnerabilities such as transaction-ordering dependence and timestamp dependence, but similarly suffers from high computational overhead.
 
-\textbf{IDE Extensions:} The developer's primary interface is the IDE. The most popular tool is Juan Blanco's Solidity extension \cite{blanco2016}. It wraps the official solc compiler to provide diagnostics. While it effectively catches syntax errors (e.g., missing semicolons, type mismatches), it does not natively scan for security patterns like reentrancy or timestamp dependence.
+IDE Extensions: The developer's primary interface is the IDE. The most popular tool is Juan Blanco's Solidity extension \cite{blanco2016}. It wraps the official solc compiler to provide diagnostics. While it effectively catches syntax errors (e.g., missing semicolons, type mismatches), it does not natively scan for security patterns like reentrancy or timestamp dependence.
 
 Solidify aims to bridge this gap by bringing lightweight security intelligence (inspired by static analyzers) into the immediate environment of the IDE (like Blanco's extension).
 
@@ -130,10 +130,10 @@ Finally, Layer 5 - Advanced Diagnostic Display surfaces findings to the user thr
     \centering
     \resizebox{\textwidth}{!}{%
     \begin{tikzpicture}[
-        block/.style={rectangle, draw=black, line width=0.8pt, rounded corners=3pt, minimum height=4.2em, minimum width=7em, text centered, align=center, fill=white, font=\normalsize},
-        group/.style={draw=black, line width=1.2pt, dashed, inner sep=20pt, rounded corners=5pt},
-        arrow/.style={-{Latex[length=3.5mm]}, line width=1.5pt},
-        lab/.style={font=\normalsize, inner sep=3pt, text=black, fill=white, rounded corners=2pt}
+        block/.style={rectangle, draw=black, line width=1pt, rounded corners=4pt, minimum height=5em, minimum width=8.5em, text centered, align=center, fill=white, font=\Large\bfseries},
+        group/.style={draw=black, line width=1.5pt, dashed, inner sep=25pt, rounded corners=6pt},
+        arrow/.style={-{Latex[length=4mm]}, line width=2pt},
+        lab/.style={font=\Large, inner sep=4pt, text=black, fill=white, rounded corners=3pt}
     ]
 
     % Define colors for each layer
@@ -143,16 +143,16 @@ Finally, Layer 5 - Advanced Diagnostic Display surfaces findings to the user thr
     \definecolor{layer4color}{RGB}{255,250,235}
     \definecolor{layer5color}{RGB}{245,235,255}
 
-    % Node coordinates - expanded spacing
-    \node[block, fill=layer1color]      (ext)       at (4.5,-5.0)  {\textbf{VS Code}\\\textbf{Event Hooks}};
-    \node[block, fill=layer2color]      (core)      at (4.5,4.0)   {\textbf{Core Analysis}\\\textbf{Pipeline}};
-    \node[block, fill=layer3color]      (parser)    at (12.5,4.0)  {\textbf{AST Parser}\\\textbf{Module}};
-    \node[block, fill=layer3color]      (semantic)  at (12.5,-0.5) {\textbf{Semantic Analyzer}\\\textbf{Module}};
-    \node[block, fill=layer3color]      (cfg)       at (12.5,-5.0) {\textbf{CFG Builder}\\\textbf{Module}};
-    \node[block, fill=layer4color]      (crossFile) at (20.5,4.0)  {\textbf{Cross-File}\\\textbf{Analysis Rules}};
-    \node[block, fill=layer4color]      (astRule)   at (20.5,-0.5) {\textbf{AST-Based}\\\textbf{Rules}};
-    \node[block, fill=layer4color]      (cfgRule)   at (20.5,-5.0) {\textbf{CFG-Based}\\\textbf{Rules}};
-    \node[block, fill=layer5color]      (diag)      at (27.5,-0.5) {\textbf{Enhanced}\\\textbf{Diagnostic System}};
+    % Node coordinates - significantly expanded spacing
+    \node[block, fill=layer1color]      (ext)       at (5,-6.5)    {\textbf{VS Code}\\\textbf{Event Hooks}};
+    \node[block, fill=layer2color]      (core)      at (5,5.5)     {\textbf{Core Analysis}\\\textbf{Pipeline}};
+    \node[block, fill=layer3color]      (parser)    at (14.5,5.5)  {\textbf{AST Parser}\\\textbf{Module}};
+    \node[block, fill=layer3color]      (semantic)  at (14.5,-0.5) {\textbf{Semantic Analyzer}\\\textbf{Module}};
+    \node[block, fill=layer3color]      (cfg)       at (14.5,-6.5) {\textbf{CFG Builder}\\\textbf{Module}};
+    \node[block, fill=layer4color]      (crossFile) at (24,5.5)    {\textbf{Cross-File}\\\textbf{Analysis Rules}};
+    \node[block, fill=layer4color]      (astRule)   at (24,-0.5)   {\textbf{AST-Based}\\\textbf{Rules}};
+    \node[block, fill=layer4color]      (cfgRule)   at (24,-6.5)   {\textbf{CFG-Based}\\\textbf{Rules}};
+    \node[block, fill=layer5color]      (diag)      at (32.5,-0.5) {\textbf{Enhanced}\\\textbf{Diagnostic System}};
 
     % Background layer groups
     \begin{scope}[on background layer]
@@ -163,26 +163,26 @@ Finally, Layer 5 - Advanced Diagnostic Display surfaces findings to the user thr
         \node[group, fill=layer5color!30] [fit=(diag)] (l5) {};
     \end{scope}
 
-    % Layer labels - positioned at bottom left of each layer
-    \node[font=\large\bfseries, anchor=north west, text=red!70!black] at ([xshift=5pt, yshift=-5pt]l1.north west) {Layer 1};
-    \node[font=\large\bfseries, anchor=north west, text=blue!70!black] at ([xshift=5pt, yshift=-5pt]l2.north west) {Layer 2};
-    \node[font=\large\bfseries, anchor=north west, text=green!60!black] at ([xshift=5pt, yshift=-5pt]l3.north west) {Layer 3};
-    \node[font=\large\bfseries, anchor=north west, text=orange!80!black] at ([xshift=5pt, yshift=-5pt]l4.north west) {Layer 4};
-    \node[font=\large\bfseries, anchor=north west, text=purple!70!black] at ([xshift=5pt, yshift=-5pt]l5.north west) {Layer 5};
+    % Layer labels - positioned at top right corner
+    \node[font=\Large\bfseries, anchor=north east, text=red!70!black] at ([xshift=-8pt, yshift=-8pt]l1.north east) {Layer 1};
+    \node[font=\Large\bfseries, anchor=north east, text=blue!70!black] at ([xshift=-8pt, yshift=-8pt]l2.north east) {Layer 2};
+    \node[font=\Large\bfseries, anchor=north east, text=green!60!black] at ([xshift=-8pt, yshift=-8pt]l3.north east) {Layer 3};
+    \node[font=\Large\bfseries, anchor=north east, text=orange!80!black] at ([xshift=-8pt, yshift=-8pt]l4.north east) {Layer 4};
+    \node[font=\Large\bfseries, anchor=north east, text=purple!70!black] at ([xshift=-8pt, yshift=-8pt]l5.north east) {Layer 5};
 
-    % Data flow arrows with annotations
-    \draw[arrow, color=blue!70] (ext) -- node[lab, pos=0.5, right, xshift=8pt]{Document events} (core);
+    % Data flow arrows with annotations - vertical arrows use "right" position to overlay on arrow
+    \draw[arrow, color=purple!70] (ext) -- node[lab, pos=0.5, above]{Document events} (core);
     \draw[arrow, color=blue!70] (core) -- node[lab, pos=0.5, above]{Source snapshot} (parser);
-    \draw[arrow, color=green!60!black] (parser) -- node[lab, pos=0.5, right, xshift=8pt]{AST nodes} (semantic);
-    \draw[arrow, color=green!60!black] (semantic) -- node[lab, pos=0.5, right, xshift=8pt]{Control-flow seeds} (cfg);
-    \draw[arrow, color=orange!70!red] (parser) -- node[lab, pos=0.5, above]{Project graph} (crossFile);
-    \draw[arrow, color=orange!70!red] (parser) -- node[lab, pos=0.5, above, yshift=3pt]{Syntax tree} (astRule);
-    \draw[arrow, color=orange!70!red] (semantic) -- node[lab, pos=0.5, above]{Symbol tables} (astRule);
-    \draw[arrow, color=orange!70!red] (semantic) -- node[lab, pos=0.5, above, yshift=3pt]{Data-flow facts} (cfgRule);
-    \draw[arrow, color=orange!70!red] (cfg) -- node[lab, pos=0.5, above]{CFG edges} (cfgRule);
-    \draw[arrow, color=purple!70] (crossFile) -- node[lab, pos=0.5, above, yshift=3pt]{Workspace diagnostics} (diag);
-    \draw[arrow, color=purple!70] (astRule) -- node[lab, pos=0.5, above]{AST findings} (diag);
-    \draw[arrow, color=purple!70] (cfgRule) -- node[lab, pos=0.5, above, yshift=3pt]{CFG findings} (diag);
+    \draw[arrow, color=green!60!black] (parser) -- node[lab, pos=0.5, above]{AST nodes} (semantic);
+    \draw[arrow, color=green!60!black] (semantic) -- node[lab, pos=0.5, above]{Control-flow seeds} (cfg);
+    \draw[arrow, color=green!60!black] (parser) -- node[lab, pos=0.5, above]{Project graph} (crossFile);
+    \draw[arrow, color=green!60!black] (parser) -- node[lab, pos=0.5, above]{Syntax tree} (astRule);
+    \draw[arrow, color=green!60!black] (semantic) -- node[lab, pos=0.5, above]{Symbol tables} (astRule);
+    \draw[arrow, color=green!60!black] (semantic) -- node[lab, pos=0.5, above]{Data-flow facts} (cfgRule);
+    \draw[arrow, color=green!60!black] (cfg) -- node[lab, pos=0.5, above]{CFG edges} (cfgRule);
+    \draw[arrow, color=orange!70] (crossFile) -- node[lab, pos=0.5, above]{Workspace diagnostics} (diag);
+    \draw[arrow, color=orange!70] (astRule) -- node[lab, pos=0.5, above]{AST findings} (diag);
+    \draw[arrow, color=orange!70] (cfgRule) -- node[lab, pos=0.5, above]{CFG findings} (diag);
 
     \end{tikzpicture}
     }
@@ -190,17 +190,17 @@ Finally, Layer 5 - Advanced Diagnostic Display surfaces findings to the user thr
     \label{fig:architecture}
 \end{figure}
 
-\section{Results}
+\section{Experimental Results}
 
-We evaluate Solidify along two key dimensions: analysis latency and security detection accuracy. Our assessment compares Solidify against Juan Blanco's Solidity extension (v0.0.176), the most widely adopted VS Code tool for Solidity development, which relies on the \texttt{solc} compiler for diagnostics.
+We evaluate Solidify along two key dimensions: analysis latency and security detection accuracy. Our assessment compares Solidify against Juan Blanco's Solidity extension (v0.0.176), the most widely adopted VS Code tool for Solidity development, which relies on the solc compiler for diagnostics.
 
 \subsection{Experimental Setup}
 
-\textbf{Dataset:} We collected 30 real-world Solidity smart contracts of varying size and complexity, sampled from popular open-source projects on GitHub. The contracts range from simple token implementations to complex DeFi protocols, ensuring diversity in code patterns and potential vulnerability types.
+Dataset: We collected 30 real-world Solidity smart contracts of varying size and complexity, sampled from popular open-source projects on GitHub. The contracts range from simple token implementations to complex DeFi protocols, ensuring diversity in code patterns and potential vulnerability types.
 
-\textbf{Baseline Configuration:} The baseline tool uses default \texttt{solc} compiler integration for diagnostics, representing the standard development experience for most Solidity developers.
+Baseline Configuration: The baseline tool uses default solc compiler integration for diagnostics, representing the standard development experience for most Solidity developers.
 
-\textbf{Hardware:} All experiments were conducted on identical hardware configurations (CPU: Intel i9-14900HX, RAM: 32 GB) to ensure fair comparison and reproducible results.
+Hardware: All experiments were conducted on identical hardware configurations (CPU: Intel i9-14900HX, RAM: 32 GB) to ensure fair comparison and reproducible results.
 
 \begin{table}[H]
     \centering
@@ -223,7 +223,7 @@ We evaluate Solidify along two key dimensions: analysis latency and security det
 
 We measured the elapsed time from a keystroke event to the appearance of diagnostic feedback in the IDE interface. This metric directly impacts developer experience and workflow fluidity.
 
-Solidify achieves an average latency of \textbf{538 ms ($\pm$ 19 ms)}, whereas the Blanco extension averages \textbf{2447 ms ($\pm$ 139 ms)}. The Blanco's reliance on triggering the Solidity compiler introduces significant overhead through process spawning, full parsing, and type checking. In contrast, Solidify's incremental \texttt{tree-sitter} parsing enables feedback delivery approximately 4.5$\times$ faster, ensuring the UI remains responsive and never interrupts the coding flow.
+Solidify achieves an average latency of 538 ms ($\pm$ 19 ms), whereas the Blanco extension averages 2447 ms ($\pm$ 139 ms). The Blanco's reliance on triggering the Solidity compiler introduces significant overhead through process spawning, full parsing, and type checking. In contrast, Solidify's incremental tree-sitter parsing enables feedback delivery approximately 4.5$\times$ faster, ensuring the UI remains responsive and never interrupts the coding flow.
 
 \begin{figure}[H]
     \centering
@@ -236,7 +236,7 @@ Solidify achieves an average latency of \textbf{538 ms ($\pm$ 19 ms)}, whereas t
             enlarge x limits=0.5,
             symbolic x coords={Solidify, Blanco Extension},
             xtick={Solidify, Blanco Extension}, 
-            ylabel={Latency (ms) - Lower is Better},
+            ylabel={Latency (ms)},
             ymin=0, 
             ymax=3000,
             grid=major,
@@ -262,7 +262,7 @@ We evaluated both tools on their ability to identify known security vulnerabilit
 
 The Blanco tool, designed primarily for syntax correctness, demonstrates strong precision (1.00) but limited recall (0.58), resulting in an $F1$ score of 0.73. While it successfully flags compilation warnings with zero false positives, it misses many security-specific patterns. The perfect precision reflects that flagged issues are indeed problems, but these are predominantly syntax errors rather than security vulnerabilities.
 
-Solidify substantially improves security detection capabilities, achieving an $F1$ score of \textbf{0.90} with high precision (0.83) and exceptional recall (0.99). The tool successfully catches nearly all security vulnerabilities in the dataset while maintaining acceptable false positive rates (0.17). While not matching the exhaustive coverage of offline audit tools like Slither \cite{feist2019}, ZEUS \cite{kalra2018}, or Manticore \cite{mossberg2018}, Solidify represents a significant advancement over standard IDE capabilities, catching critical vulnerabilities during active development.
+Solidify substantially improves security detection capabilities, achieving an $F1$ score of 0.90 with high precision (0.83) and exceptional recall (0.99). The tool successfully catches nearly all security vulnerabilities in the dataset while maintaining acceptable false positive rates (0.17). While not matching the exhaustive coverage of offline audit tools like Slither \cite{feist2019}, ZEUS \cite{kalra2018}, or Manticore \cite{mossberg2018}, Solidify represents a significant advancement over standard IDE capabilities, catching critical vulnerabilities during active development.
 
 \begin{figure}[H]
     \centering
@@ -306,15 +306,11 @@ Solidify substantially improves security detection capabilities, achieving an $F
 
 \section{Discussion}
 
-\subsection{Strengths}
-
-Our evaluation demonstrates that Solidify successfully addresses a critical gap in smart contract development tooling by bringing security-aware static analysis into the real-time IDE workflow without compromising performance. The hybrid AST-regex architecture proves particularly effective: \texttt{tree-sitter}'s incremental parsing delivers sub-second response times crucial for maintaining developer flow, while pattern-based rules catch common vulnerabilities instantly. This represents a paradigm shift from the traditional compile-check-fix cycle to continuous security feedback.
+Our evaluation demonstrates that Solidify successfully addresses a critical gap in smart contract development tooling by bringing security-aware static analysis into the real-time IDE workflow without compromising performance. The hybrid AST-regex architecture proves particularly effective: tree-sitter's incremental parsing delivers sub-second response times crucial for maintaining developer flow, while pattern-based rules catch common vulnerabilities instantly. This represents a paradigm shift from the traditional compile-check-fix cycle to continuous security feedback.
 
 The tool's modular rule architecture offers significant practical advantages. Security patterns can be independently developed, tested, and deployed without modifying the core analysis engine. This extensibility ensures that Solidify can evolve alongside emerging vulnerability classes and Solidity language updates. Furthermore, by integrating directly into the developer's primary workspace, Solidify reduces context switching and lowers the barrier to security awareness---developers receive guidance at the moment they write potentially vulnerable code rather than discovering issues hours or days later during external audits.
 
-\subsection{Limitations}
-
-Despite these strengths, Solidify has several limitations that constrain its current capabilities. The most significant is limited semantic depth: our hybrid approach excels at pattern matching but cannot perform deep data-flow analysis or symbolic reasoning. Complex vulnerabilities requiring cross-function taint tracking or multi-transaction attack scenarios remain beyond the tool's detection scope. This means Solidify should complement, not replace, thorough security audits using tools like Slither \cite{feist2019}, Mythril \cite{mueller2018}, or Manticore \cite{mossberg2018}.
+Despite these strengths, Solidify has several limitations that constrain its current capabilities. The most significant is limited semantic depth: our hybrid approach excels at pattern matching but cannot perform deep data-flow analysis or symbolic reasoning. Complex vulnerabilities requiring cross-function taint tracking or multi-transaction attack scenarios remain beyond the tool's detection scope. This means Solidify should complement, not replace, thorough security audits using comprehensive analysis frameworks.
 
 The current rule coverage, while addressing common vulnerability patterns, is not exhaustive. Our evaluation focused on well-documented vulnerability classes, but the rapidly evolving DeFi ecosystem continuously produces novel attack vectors. The tool's effectiveness depends on rule maintenance and expansion, requiring ongoing community contribution or dedicated curation. Additionally, the false positive rate of 0.17, while reasonable for a real-time tool, may cause alert fatigue if developers encounter frequent incorrect warnings during active development. Balancing sensitivity with precision remains an ongoing challenge, particularly for rules that require semantic context our lightweight analysis cannot fully capture.
 
@@ -322,7 +318,7 @@ The current rule coverage, while addressing common vulnerability patterns, is no
 
 This paper presented Solidify, a real-time static analysis extension that integrates security intelligence directly into the Solidity development workflow within Visual Studio Code. Our primary contributions include a hybrid AST-regex analysis architecture that bypasses compilation overhead, a modular rule system enabling independent extension of security checks, and empirical validation demonstrating practical viability. Experimental results show that Solidify delivers diagnostic feedback 4.5$\times$ faster than the industry-standard extension (538 ms vs. 2447 ms) while substantially improving security detection capabilities ($F1 = 0.90$ vs. $0.73$). These findings validate that shifting security analysis left to the earliest moment in the development lifecycle is both technically feasible and practically valuable for smart contract development.
 
-However, several limitations present opportunities for future enhancement. To address the semantic depth gap, we plan to integrate lightweight data-flow analysis that can track variable states across function boundaries without full symbolic execution overhead. Expanding rule coverage will involve establishing a community-driven rule repository with standardized testing frameworks to ensure quality and reduce false positives. We also intend to incorporate machine learning-based pattern recognition to detect novel vulnerability classes that lack explicit rules. Finally, cross-platform support beyond VS Code (such as JetBrains IDEs and Vim) and integration with CI/CD pipelines will extend Solidify's reach across the entire development lifecycle. These enhancements will position Solidify as a comprehensive security companion for smart contract developers.
+Looking forward, several promising directions exist for enhancing Solidify's capabilities. To address deeper semantic analysis, we plan to integrate lightweight data-flow analysis that can track variable states across function boundaries without full symbolic execution overhead. Expanding rule coverage will involve establishing a community-driven rule repository with standardized testing frameworks to ensure quality and reduce false positives. We also intend to incorporate machine learning-based pattern recognition to detect novel vulnerability classes that lack explicit rules. Finally, cross-platform support beyond VS Code (such as JetBrains IDEs and Vim) and integration with CI/CD pipelines will extend Solidify's reach across the entire development lifecycle. These enhancements will position Solidify as a comprehensive security companion for smart contract developers.
 
 \begin{thebibliography}{9}
 \bibitem{atzei2017} N. Atzei, M. Bartoletti, and T. Cimoli, ``A survey of attacks on Ethereum smart contracts,'' in \textit{Principles of Security and Trust (POST)}, ser. Lecture Notes in Computer Science, vol. 10260. Cham: Springer, 2017, pp. 109--139.
@@ -335,7 +331,7 @@ However, several limitations present opportunities for future enhancement. To ad
 
 \bibitem{mossberg2018} M. Mossberg, F. Manzano, E. Hennenfent, A. Groce, G. Grieco, J. Feist, T. Brunson, and A. Dinaburg, ``Manticore: A user-friendly symbolic execution framework for binaries and smart contracts,'' in \textit{2019 34th IEEE/ACM International Conference on Automated Software Engineering (ASE)}, 2019, pp. 1186--1189.
 
-\bibitem{blanco2016} J. Blanco, ``Solidity extension for Visual Studio Code,'' VS Code Marketplace, 2016. [Online]. Available: \url{https://marketplace.visualstudio.com/items?itemName=JuanBlanco.solidity}
+\bibitem{blanco2016} J. Blanco, ``Solidity extension for Visual Studio Code,'' \textit{GitHub repository}, 2016. [Online]. Available: \url{https://github.com/juanfranblanco/vscode-solidity}
 
 \bibitem{brunsfeld2018} M. Brunsfeld, ``Tree-sitter: An incremental parsing system for programming tools,'' \textit{GitHub repository}, 2018. [Online]. Available: \url{https://tree-sitter.github.io/tree-sitter/}
 
