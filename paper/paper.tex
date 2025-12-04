@@ -105,9 +105,9 @@ Solidify aims to bridge this gap by bringing lightweight security intelligence (
         ZEUS \cite{kalra2018} & Abstract Interpretation & Slow & Audit \\
         Mythril \cite{mueller2018} & Concolic Analysis & Very Slow & Deep Audit \\
         Manticore \cite{mossberg2018} & Symbolic Execution & Very Slow & Deep Audit \\
-        J. Blanco Ext. \cite{blanco2016} & Compiler Wrapper & Fast & Coding (Syntax) \\
+        J. Blanco Ext. \cite{blanco2016} & Compiler Wrapper & Fast & Coding \\
         \midrule
-        \textbf{Solidify} & \textbf{Hybrid (AST + Regex)} & \textbf{Instant} & \textbf{Coding (Security)} \\
+        \textbf{Solidify} & \textbf{Hybrid (AST + Regex)} & \textbf{Instant} & \textbf{Coding} \\
         \bottomrule
     \end{tabularx}
 \end{table}
@@ -143,16 +143,25 @@ Finally, Layer 5 - Advanced Diagnostic Display surfaces findings to the user thr
     \definecolor{layer4color}{RGB}{255,250,235}
     \definecolor{layer5color}{RGB}{245,235,255}
 
-    % Node coordinates - significantly expanded spacing
-    \node[block, fill=layer1color]      (ext)       at (5,-6.5)    {\textbf{VS Code}\\\textbf{Event Hooks}};
-    \node[block, fill=layer2color]      (core)      at (5,5.5)     {\textbf{Core Analysis}\\\textbf{Pipeline}};
-    \node[block, fill=layer3color]      (parser)    at (14.5,5.5)  {\textbf{AST Parser}\\\textbf{Module}};
-    \node[block, fill=layer3color]      (semantic)  at (14.5,-0.5) {\textbf{Semantic Analyzer}\\\textbf{Module}};
-    \node[block, fill=layer3color]      (cfg)       at (14.5,-6.5) {\textbf{CFG Builder}\\\textbf{Module}};
-    \node[block, fill=layer4color]      (crossFile) at (24,5.5)    {\textbf{Cross-File}\\\textbf{Analysis Rules}};
-    \node[block, fill=layer4color]      (astRule)   at (24,-0.5)   {\textbf{AST-Based}\\\textbf{Rules}};
-    \node[block, fill=layer4color]      (cfgRule)   at (24,-6.5)   {\textbf{CFG-Based}\\\textbf{Rules}};
-    \node[block, fill=layer5color]      (diag)      at (32.5,-0.5) {\textbf{Enhanced}\\\textbf{Diagnostic System}};
+    % Node coordinates - aligned vertically
+    % Layer 1 (top right - aligned with Layer 5)
+    \node[block, fill=layer1color] (ext) at (32.5,6) {\textbf{VS Code}\\\textbf{Event Hooks}};
+    
+    % Layer 2 (top middle - aligned with Layer 4)
+    \node[block, fill=layer2color] (core) at (19,6) {\textbf{Core Analysis}\\\textbf{Pipeline}};
+    
+    % Layer 3 (middle left - vertical column with more spacing)
+    \node[block, fill=layer3color] (parser) at (14.5,0) {\textbf{AST Parser}\\\textbf{Module}};
+    \node[block, fill=layer3color] (semantic) at (14.5,-4.5) {\textbf{Semantic Analyzer}\\\textbf{Module}};
+    \node[block, fill=layer3color] (cfg) at (14.5,-9) {\textbf{CFG Builder}\\\textbf{Module}};
+    
+    % Layer 4 (middle right - horizontal row)
+    \node[block, fill=layer4color] (crossFile) at (24,0) {\textbf{Cross-File}\\\textbf{Analysis Rules}};
+    \node[block, fill=layer4color] (astRule) at (24,-4.5) {\textbf{AST-Based}\\\textbf{Rules}};
+    \node[block, fill=layer4color] (cfgRule) at (24,-9) {\textbf{CFG-Based}\\\textbf{Rules}};
+    
+    % Layer 5 (right)
+    \node[block, fill=layer5color] (diag) at (32.5,-4.5) {\textbf{Enhanced}\\\textbf{Diagnostic System}};
 
     % Background layer groups
     \begin{scope}[on background layer]
@@ -163,30 +172,45 @@ Finally, Layer 5 - Advanced Diagnostic Display surfaces findings to the user thr
         \node[group, fill=layer5color!30] [fit=(diag)] (l5) {};
     \end{scope}
 
-    % Layer labels - positioned at top right corner
+    % Layer labels
     \node[font=\Large\bfseries, anchor=north east, text=red!70!black] at ([xshift=-8pt, yshift=-8pt]l1.north east) {Layer 1};
     \node[font=\Large\bfseries, anchor=north east, text=blue!70!black] at ([xshift=-8pt, yshift=-8pt]l2.north east) {Layer 2};
     \node[font=\Large\bfseries, anchor=north east, text=green!60!black] at ([xshift=-8pt, yshift=-8pt]l3.north east) {Layer 3};
     \node[font=\Large\bfseries, anchor=north east, text=orange!80!black] at ([xshift=-8pt, yshift=-8pt]l4.north east) {Layer 4};
     \node[font=\Large\bfseries, anchor=north east, text=purple!70!black] at ([xshift=-8pt, yshift=-8pt]l5.north east) {Layer 5};
 
-    % Data flow arrows with annotations - vertical arrows use "right" position to overlay on arrow
+    % Data flow arrows
+    % Layer 1 to Layer 2 (horizontal - left)
     \draw[arrow, color=purple!70] (ext) -- node[lab, pos=0.5, above]{Document events} (core);
-    \draw[arrow, color=blue!70] (core) -- node[lab, pos=0.5, above]{Source snapshot} (parser);
+    
+    % Layer 2 to Layer 3 (right angle: Left then Down)
+    \draw[arrow, color=blue!70] (core) -| node[lab, pos=0.8, above]{Source snapshot} (parser);
+    
+    % Within Layer 3 (vertical down)
     \draw[arrow, color=green!60!black] (parser) -- node[lab, pos=0.5, above]{AST nodes} (semantic);
     \draw[arrow, color=green!60!black] (semantic) -- node[lab, pos=0.5, above]{Control-flow seeds} (cfg);
+    
+    % Layer 3 to Layer 4 (horizontal right)
     \draw[arrow, color=green!60!black] (parser) -- node[lab, pos=0.5, above]{Project graph} (crossFile);
     \draw[arrow, color=green!60!black] (parser) -- node[lab, pos=0.5, above]{Syntax tree} (astRule);
     \draw[arrow, color=green!60!black] (semantic) -- node[lab, pos=0.5, above]{Symbol tables} (astRule);
     \draw[arrow, color=green!60!black] (semantic) -- node[lab, pos=0.5, above]{Data-flow facts} (cfgRule);
     \draw[arrow, color=green!60!black] (cfg) -- node[lab, pos=0.5, above]{CFG edges} (cfgRule);
-    \draw[arrow, color=orange!70] (crossFile) -- node[lab, pos=0.5, above]{Workspace diagnostics} (diag);
-    \draw[arrow, color=orange!70] (astRule) -- node[lab, pos=0.5, above]{AST findings} (diag);
-    \draw[arrow, color=orange!70] (cfgRule) -- node[lab, pos=0.5, above]{CFG findings} (diag);
+    
+    % Layer 4 to Layer 5
+    
+    % Workspace diagnostics: Đi ngang (phải) rồi bẻ xuống (dùng -|)
+    \draw[arrow, color=orange!70!red] (crossFile) -| node[lab, pos=0.75, above]{Workspace diagnostics} (diag);
+    
+    % AST findings: Đi thẳng (giữ nguyên)
+    \draw[arrow, color=orange!70!red] (astRule) -- node[lab, pos=0.5, above]{AST findings} (diag);
+    
+    % CFG findings: Đi ngang (phải) rồi bẻ lên (dùng -|)
+    \draw[arrow, color=orange!70!red] (cfgRule) -| node[lab, pos=0.65, above]{CFG findings} (diag);
 
     \end{tikzpicture}
     }
-    \caption{A five-layer design orchestrating document events from VS Code (Layer 1) through core analysis pipeline (Layer 2), AST/CFG processing (Layer 3), modular rule execution (Layer 4), to final diagnostic display (Layer 5). Data flows from left to right, with each layer performing specialized transformations before passing structured results downstream.}
+    \caption{A five-layer design orchestrating document events from VS Code (Layer 1) through core analysis pipeline (Layer 2), AST/CFG processing (Layer 3), modular rule execution (Layer 4), to final diagnostic display (Layer 5). Data flows horizontally then vertically then horizontally again, with each layer performing specialized transformations before passing structured results downstream.}
     \label{fig:architecture}
 \end{figure}
 
