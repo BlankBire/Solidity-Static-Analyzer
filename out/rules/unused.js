@@ -232,6 +232,8 @@ function runUnusedVariables(content, tree, declaredDeclarations, pushFinding, op
     };
     for (const decl of declaredDeclarations) {
         const name = decl.name;
+        if (decl.imported)
+            continue; // skip injected imported symbols
         if (!name || name.startsWith("_"))
             continue; // ignore intentionally unused
         if (!opts?.includeStateVariables && isStateVariable(decl))

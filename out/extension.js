@@ -167,7 +167,7 @@ function runAnalysis(document) {
     const findings = (0, solidityAnalyzer_1.analyzeText)(text, rules, maxProblems, naming, useAST, {
         enabled: payableNameHeuristic,
         pattern: payableNamePattern,
-    });
+    }, document.uri.fsPath);
     // Chuyển các kết quả (findings) thành Diagnostic để VS Code hiển thị
     const diagnostics = findings.map((f) => {
         const range = new vscode.Range(new vscode.Position(f.range.start.line, f.range.start.character), new vscode.Position(f.range.end.line, f.range.end.character));

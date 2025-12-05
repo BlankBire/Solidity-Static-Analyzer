@@ -11,7 +11,7 @@ exports.analyzeText = analyzeText;
  * @param maxProblems Giới hạn số lượng lỗi tối đa
  * @returns Danh sách các findings (lỗi/cảnh báo)
  */
-function analyzeText(content, rules, maxProblems, naming, useAST, payableHeuristic) {
+function analyzeText(content, rules, maxProblems, naming, useAST, payableHeuristic, filePath) {
     const findings = [];
     // Reported keys to deduplicate diagnostics
     // (moved declarations earlier to enable AST traversal to populate them)
@@ -36,6 +36,8 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
     const usedIdentifiers = new Set();
     // detailed declared declarations with scope info
     const declaredDeclarations = [];
+    // cross-file diagnostics collected before main pushFinding exists
+    const preCrossFindings = [];
     if (useAST) {
         try {
             // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -294,6 +296,15 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
             catch (e) {
                 // ignore
             }
+            // Cross-file checks: resolve imports and collect exported top-level names
+            try {
+                // eslint-disable-next-line @typescript-eslint/no-var-requires
+                const { runCrossFileChecks } = require("./rules/cross");
+                runCrossFileChecks(content, filePath, declaredIdentifiers, declaredDeclarations, (line, start, end, msg, code, sev) => preCrossFindings.push({ line, start, end, msg, code, sev }));
+            }
+            catch (e) {
+                // ignore if cross module not available
+            }
         }
         catch (err) {
             // Nếu không có tree-sitter hoặc parse lỗi → fallback về stripping regex
@@ -301,6 +312,15 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
             parser = undefined;
             tree = undefined;
         }
+    }
+    // Ensure cross-file import checks run even if AST parsing failed.
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { runCrossFileChecks } = require("./rules/cross");
+        runCrossFileChecks(content, filePath, declaredIdentifiers, declaredDeclarations, (line, start, end, msg, code, sev) => preCrossFindings.push({ line, start, end, msg, code, sev }));
+    }
+    catch (e) {
+        // ignore if cross module not available
     }
     // Split into lines after comments have been removed (from AST or fallback)
     const lines = contentNoComments.split(/\r?\n/);
@@ -325,6 +345,18 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
             },
         });
     };
+    // Flush any cross-file findings that were collected earlier (before pushFinding existed)
+    if (preCrossFindings && preCrossFindings.length > 0) {
+        for (const pf of preCrossFindings) {
+            try {
+                pushFinding(pf.line, pf.start, pf.end, pf.msg, pf.code, pf.sev);
+            }
+            catch (_err) {
+                // ignore individual flush errors
+            }
+        }
+        preCrossFindings.length = 0;
+    }
     // =============================================================================
     // PRAGMA RULES (modularized) - license & version
     // =============================================================================

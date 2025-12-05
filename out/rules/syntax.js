@@ -317,7 +317,7 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
                 }
             }
             // Function-call style without parentheses e.g., `transfer msg.sender;`
-            const declOrKeyword = /\b(function|contract|interface|library|event|modifier|struct|enum|pragma|import)\b/i;
+            const declOrKeyword = /\b(function|contract|interface|library|event|modifier|struct|enum|pragma|import|using)\b/i;
             const stmtKeywordRx = /^\s*(return|emit|require|assert|revert|break|continue)\b/i;
             if (!declOrKeyword.test(line) && !stmtKeywordRx.test(line)) {
                 const funcCallRx = /(^|\s)([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)(?:\s+)([A-Za-z_0-9`"'\[\{])/g;
