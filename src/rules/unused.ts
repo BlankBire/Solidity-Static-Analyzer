@@ -240,6 +240,7 @@ export function runUnusedVariables(
 
   for (const decl of declaredDeclarations) {
     const name = decl.name;
+    if ((decl as any).imported) continue; // skip injected imported symbols
     if (!name || name.startsWith("_")) continue; // ignore intentionally unused
     if (!opts?.includeStateVariables && isStateVariable(decl)) continue; // optionally ignore state variables
     const declKind = classifyDecl(decl);

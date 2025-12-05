@@ -363,7 +363,7 @@ export function runSyntaxRulesSingleLine(
 
       // Function-call style without parentheses e.g., `transfer msg.sender;`
       const declOrKeyword =
-        /\b(function|contract|interface|library|event|modifier|struct|enum|pragma|import)\b/i;
+        /\b(function|contract|interface|library|event|modifier|struct|enum|pragma|import|using)\b/i;
       const stmtKeywordRx =
         /^\s*(return|emit|require|assert|revert|break|continue)\b/i;
       if (!declOrKeyword.test(line) && !stmtKeywordRx.test(line)) {
