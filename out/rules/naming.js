@@ -85,7 +85,7 @@ const isTypeToken = (token) => {
     }
     return false;
 };
-function runNamingRulesSingleLine(line, lineIndex, naming, toggles, pushFinding, lines) {
+function runNamingRulesSingleLine(line, lineIndex, naming, toggles, pushFinding, lines, paramLineSet, commentRanges, lineStartIndices) {
     if (!naming)
         return;
     // FUNCTION_NAMING
@@ -131,39 +131,38 @@ function runNamingRulesSingleLine(line, lineIndex, naming, toggles, pushFinding,
         const firstToken = firstTokenMatch ? firstTokenMatch[0] : "";
         const startsWithType = isTypeToken(firstToken);
         const isFunctionLine = /^\s*function\b/i.test(decl);
-        // Heuristic: detect if current line is part of a multi-line function parameter list
-        let isInsideFunctionParams = false;
-        try {
-            if (lines && lineIndex >= 0) {
-                // scan backwards up to 20 lines to find a 'function' start
-                for (let bi = Math.max(0, lineIndex - 20); bi <= lineIndex; bi++) {
-                    const l = lines[bi] || "";
-                    if (/\bfunction\b/.test(l)) {
-                        // compute paren balance from that line up to current line
-                        let balance = 0;
-                        for (let k = bi; k <= lineIndex; k++) {
-                            const txt = lines[k] || "";
-                            for (const ch of txt) {
-                                if (ch === "(")
-                                    balance++;
-                                else if (ch === ")")
-                                    balance--;
+        // Use AST-derived paramLineSet (if available) to detect parameter-list context
+        let isInsideFunctionParams = !!(paramLineSet && paramLineSet.has(lineIndex));
+        // Fallback to text heuristic when AST info not present
+        if (!isInsideFunctionParams) {
+            try {
+                if (lines && lineIndex >= 0) {
+                    for (let bi = Math.max(0, lineIndex - 50); bi <= lineIndex; bi++) {
+                        const l = lines[bi] || "";
+                        if (/\bfunction\b/.test(l)) {
+                            let balance = 0;
+                            for (let k = bi; k <= lineIndex; k++) {
+                                const txt = lines[k] || "";
+                                for (const ch of txt) {
+                                    if (ch === "(")
+                                        balance++;
+                                    else if (ch === ")")
+                                        balance--;
+                                }
                             }
+                            if (balance > 0) {
+                                isInsideFunctionParams = true;
+                            }
+                            break;
                         }
-                        if (balance > 0) {
-                            isInsideFunctionParams = true;
-                        }
-                        break;
                     }
                 }
             }
+            catch { }
         }
-        catch { }
         const isEventOrOther = /^\s*(contract|interface|library|event|modifier|enum|struct)\b/i.test(decl);
-        if (isInsideFunctionParams) {
-            // If we're inside a function parameter list, don't treat the line as a variable declaration
+        if (isInsideFunctionParams)
             return;
-        }
         if (startsWithType && !isFunctionLine && !isEventOrOther) {
             const normalized = decl.replace(/\b(mapping\s*\([^)]*\))/gi, "mapping");
             const tokens = normalized.split(/\s+/).filter(Boolean);
@@ -174,14 +173,27 @@ function runNamingRulesSingleLine(line, lineIndex, naming, toggles, pushFinding,
                 const tok = tokens[t];
                 const isModifier = modifierKeywords.has(tok.toLowerCase());
                 const isArray = /\[.*\]$/.test(tok);
-                if (!isModifier && !isArray) {
-                    const base = tok.replace(/[;={].*$/, "").trim();
-                    if (base.length > 0) {
-                        identifier = base;
-                        identifierStart = original.indexOf(tok);
-                        identifierTokenIndex = t;
-                        break;
+                // Skip known modifier tokens (e.g., `memory`, `public`) and stray commas
+                if (isModifier)
+                    continue;
+                if (tok === ",")
+                    continue;
+                // If the current line is inside a block comment, skip naming checks
+                if (commentRanges && lineStartIndices) {
+                    const start = lineStartIndices[lineIndex] ?? 0;
+                    const end = lineIndex + 1 < lineStartIndices.length ? (lineStartIndices[lineIndex + 1] - 1) : undefined;
+                    for (const [cs, ce] of commentRanges) {
+                        if ((end === undefined && cs <= start) || (end !== undefined && cs <= end && ce >= start)) {
+                            return;
+                        }
                     }
+                }
+                const base = tok.replace(/[;={].*$/, "").trim();
+                if (base.length > 0) {
+                    identifier = base;
+                    identifierStart = original.indexOf(tok);
+                    identifierTokenIndex = t;
+                    break;
                 }
             }
             if (identifier && identifierStart >= 0) {

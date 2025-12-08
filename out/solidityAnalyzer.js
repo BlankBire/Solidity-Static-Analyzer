@@ -26,6 +26,8 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
     let commentRanges = [];
     let stringLiteralRanges = [];
     let ignoredRanges = [];
+    // set of line numbers that are inside any AST parameter_list node
+    let parameterLineSet = new Set();
     // Theo dõi các identifier bị thiếu kiểu để cảnh báo khi được sử dụng ở các dòng sau
     const missingTypeIdentifiers = new Set();
     // Theo dõi các identifier đã được khai báo (có type)
@@ -83,14 +85,12 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
             };
             if (tree && tree.rootNode)
                 collectIgnored(tree.rootNode);
-            // Remove comment ranges from content (iterate từ cuối về đầu để tránh ảnh hưởng chỉ số)
-            if (commentRanges.length > 0) {
-                commentRanges.sort((a, b) => b[0] - a[0]);
-                for (const [s, e] of commentRanges) {
-                    contentNoComments =
-                        contentNoComments.slice(0, s) + contentNoComments.slice(e);
-                }
-            }
+            // Do not remove comment ranges from the content here.
+            // We keep `contentNoComments` equal to original `content` so line
+            // numbers produced by the AST (tree-sitter) match the per-line
+            // indices used below. Comment ranges are still available in
+            // `commentRanges` for rules that need them.
+            contentNoComments = content;
             // Collect declared identifiers from AST: state vars, parameters, and local var declarations
             try {
                 const collectDeclared = (node) => {
@@ -292,6 +292,28 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
                 };
                 if (tree && tree.rootNode)
                     collectDeclared(tree.rootNode);
+                // Collect parameter_list line numbers for AST-based param detection
+                parameterLineSet = new Set();
+                try {
+                    const walkParams = (node) => {
+                        if (!node)
+                            return;
+                        if (String(node.type) === "parameter_list") {
+                            const start = node.startPosition ? node.startPosition.row : 0;
+                            const end = node.endPosition ? node.endPosition.row : start;
+                            for (let r = start; r <= end; r++)
+                                parameterLineSet.add(r);
+                        }
+                        const kids = node.namedChildren || node.children || [];
+                        for (const c of kids)
+                            walkParams(c);
+                    };
+                    if (tree && tree.rootNode)
+                        walkParams(tree.rootNode);
+                }
+                catch (e) {
+                    // ignore
+                }
             }
             catch (e) {
                 // ignore
@@ -324,6 +346,22 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
     }
     // Split into lines after comments have been removed (from AST or fallback)
     const lines = contentNoComments.split(/\r?\n/);
+    // Compute line start indices in the original content so we can map line->char index
+    const lineStartIndices = [];
+    for (let p = 0, ln = 0; p < content.length; p++) {
+        if (ln === 0)
+            lineStartIndices.push(p);
+        if (content[p] === "\n") {
+            ln += 1;
+            lineStartIndices.push(p + 1);
+        }
+    }
+    // Ensure at least one entry per line (fallback)
+    while (lineStartIndices.length < lines.length) {
+        const last = lineStartIndices.length ? lineStartIndices[lineStartIndices.length - 1] : 0;
+        lineStartIndices.push(last);
+    }
+    // parameterLineSet is available (empty if AST parsing failed)
     const reportedKeys = new Set();
     // Hàm helper để thêm finding vào danh sách
     const pushFinding = (lineIndex, start, end, message, code, severity) => {
@@ -486,7 +524,7 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
                 missingParentheses: !!rules.missingParentheses,
                 wrongKeywords: !!rules.wrongKeywords,
                 missingDataType: !!rules.missingDataType,
-            }, content, pushFinding, declaredIdentifiers, missingTypeIdentifiers);
+            }, content, pushFinding, declaredIdentifiers, missingTypeIdentifiers, commentRanges, lineStartIndices, parameterLineSet);
         }
         catch { }
         // 10. MISSING_PAYABLE - Fallback per-line checks (receive(), no-AST heuristic)
@@ -504,7 +542,7 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
                 functionNaming: !!rules.functionNaming,
                 variableNaming: !!rules.variableNaming,
                 contractNaming: !!rules.contractNaming,
-            }, pushFinding, lines);
+            }, pushFinding, lines, parameterLineSet);
         }
         catch { }
     }

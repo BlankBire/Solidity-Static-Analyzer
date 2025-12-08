@@ -93,7 +93,10 @@ export function runSyntaxRulesSingleLine(
   content: string,
   pushFinding: PushFinding,
   declaredIdentifiers?: Set<string>,
-  missingTypeIdentifiers?: Set<string>
+  missingTypeIdentifiers?: Set<string>,
+  paramLineSet?: Set<number>,
+  commentRanges?: Array<[number, number]>,
+  lineStartIndices?: number[]
 ): void {
   const stripInlineComments = (s: string) => s.split("//")[0];
   const declaredIds = declaredIdentifiers || new Set<string>();
@@ -129,32 +132,51 @@ export function runSyntaxRulesSingleLine(
   })();
   const isInsideString = (idx: number) =>
     stringSegments.some(([s, e]) => idx >= s && idx < e);
-  // Heuristic: detect if current line is part of a multi-line function parameter list
-  let isInsideFunctionParams = false;
-  try {
-    // lines is passed into this function from analyzer
-    // find 'function' starting line within recent 20 lines and compute paren balance
-    const currentIndex = (lines as string[]).indexOf(line);
-    if (lines && currentIndex >= 0) {
-      for (let bi = Math.max(0, currentIndex - 20); bi <= currentIndex; bi++) {
-        const l = (lines as string[])[bi] || "";
-        if (/\bfunction\b/.test(l)) {
-          let balance = 0;
-          for (let k = bi; k <= currentIndex; k++) {
-            const txt = (lines as string[])[k] || "";
-            for (const ch of txt) {
-              if (ch === "(") balance++;
-              else if (ch === ")") balance--;
+  // Determine if this line is inside a function parameter list using AST-derived set
+  let isInsideFunctionParams = !!(paramLineSet && paramLineSet.has(lineIndex));
+  // Determine if this line is inside a block comment (using AST-provided commentRanges)
+  const isInsideBlockComment = (() => {
+    if (!commentRanges || !lineStartIndices) return false;
+    const start = lineStartIndices[lineIndex] ?? 0;
+    const end =
+      lineIndex + 1 < lineStartIndices.length
+        ? lineStartIndices[lineIndex + 1] - 1
+        : content.length;
+    for (const [cs, ce] of commentRanges) {
+      if (cs <= end && ce >= start) return true;
+    }
+    return false;
+  })();
+  if (isInsideBlockComment) return;
+  // Fallback: if AST info not available, use text-based heuristic
+  if (!isInsideFunctionParams) {
+    try {
+      const currentIndex = lines.indexOf(line);
+      if (currentIndex >= 0) {
+        for (
+          let bi = Math.max(0, currentIndex - 50);
+          bi <= currentIndex;
+          bi++
+        ) {
+          const l = lines[bi] || "";
+          if (/\bfunction\b/.test(l)) {
+            let balance = 0;
+            for (let k = bi; k <= currentIndex; k++) {
+              const txt = lines[k] || "";
+              for (const ch of txt) {
+                if (ch === "(") balance++;
+                else if (ch === ")") balance--;
+              }
             }
+            if (balance > 0) {
+              isInsideFunctionParams = true;
+            }
+            break;
           }
-          if (balance > 0) {
-            isInsideFunctionParams = true;
-          }
-          break;
         }
       }
-    }
-  } catch {}
+    } catch {}
+  }
   // 5. MISSING_SEMICOLON
   if (config.missingSemicolon) {
     const trimmedLine = line.trim();
