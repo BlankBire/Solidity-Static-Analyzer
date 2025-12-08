@@ -85,7 +85,7 @@ const isTypeToken = (token) => {
     }
     return false;
 };
-function runNamingRulesSingleLine(line, lineIndex, naming, toggles, pushFinding) {
+function runNamingRulesSingleLine(line, lineIndex, naming, toggles, pushFinding, lines) {
     if (!naming)
         return;
     // FUNCTION_NAMING
@@ -131,7 +131,39 @@ function runNamingRulesSingleLine(line, lineIndex, naming, toggles, pushFinding)
         const firstToken = firstTokenMatch ? firstTokenMatch[0] : "";
         const startsWithType = isTypeToken(firstToken);
         const isFunctionLine = /^\s*function\b/i.test(decl);
+        // Heuristic: detect if current line is part of a multi-line function parameter list
+        let isInsideFunctionParams = false;
+        try {
+            if (lines && lineIndex >= 0) {
+                // scan backwards up to 20 lines to find a 'function' start
+                for (let bi = Math.max(0, lineIndex - 20); bi <= lineIndex; bi++) {
+                    const l = lines[bi] || "";
+                    if (/\bfunction\b/.test(l)) {
+                        // compute paren balance from that line up to current line
+                        let balance = 0;
+                        for (let k = bi; k <= lineIndex; k++) {
+                            const txt = lines[k] || "";
+                            for (const ch of txt) {
+                                if (ch === "(")
+                                    balance++;
+                                else if (ch === ")")
+                                    balance--;
+                            }
+                        }
+                        if (balance > 0) {
+                            isInsideFunctionParams = true;
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+        catch { }
         const isEventOrOther = /^\s*(contract|interface|library|event|modifier|enum|struct)\b/i.test(decl);
+        if (isInsideFunctionParams) {
+            // If we're inside a function parameter list, don't treat the line as a variable declaration
+            return;
+        }
         if (startsWithType && !isFunctionLine && !isEventOrOther) {
             const normalized = decl.replace(/\b(mapping\s*\([^)]*\))/gi, "mapping");
             const tokens = normalized.split(/\s+/).filter(Boolean);

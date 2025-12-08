@@ -680,7 +680,8 @@ export function analyzeText(
           variableNaming: !!rules.variableNaming,
           contractNaming: !!rules.contractNaming,
         },
-        pushFinding
+        pushFinding,
+        lines
       );
     } catch {}
   }

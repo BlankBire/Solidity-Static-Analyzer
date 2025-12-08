@@ -504,7 +504,7 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
                 functionNaming: !!rules.functionNaming,
                 variableNaming: !!rules.variableNaming,
                 contractNaming: !!rules.contractNaming,
-            }, pushFinding);
+            }, pushFinding, lines);
         }
         catch { }
     }

@@ -138,6 +138,35 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
         return spans;
     })();
     const isInsideString = (idx) => stringSegments.some(([s, e]) => idx >= s && idx < e);
+    // Heuristic: detect if current line is part of a multi-line function parameter list
+    let isInsideFunctionParams = false;
+    try {
+        // lines is passed into this function from analyzer
+        // find 'function' starting line within recent 20 lines and compute paren balance
+        const currentIndex = lines.indexOf(line);
+        if (lines && currentIndex >= 0) {
+            for (let bi = Math.max(0, currentIndex - 20); bi <= currentIndex; bi++) {
+                const l = lines[bi] || "";
+                if (/\bfunction\b/.test(l)) {
+                    let balance = 0;
+                    for (let k = bi; k <= currentIndex; k++) {
+                        const txt = lines[k] || "";
+                        for (const ch of txt) {
+                            if (ch === "(")
+                                balance++;
+                            else if (ch === ")")
+                                balance--;
+                        }
+                    }
+                    if (balance > 0) {
+                        isInsideFunctionParams = true;
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    catch { }
     // 5. MISSING_SEMICOLON
     if (config.missingSemicolon) {
         const trimmedLine = line.trim();
@@ -159,6 +188,9 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
             mappingTypePattern.test(lineForDeclCheck)) &&
             !lineForDeclCheck.includes(" function ") &&
             !lineForDeclCheck.endsWith(";")) {
+            // If this line is inside a multi-line function parameter list, skip
+            if (isInsideFunctionParams)
+                return;
             const previousCodeLine = (() => {
                 for (let j = lineIndex - 1; j >= 0; j -= 1) {
                     const prev = stripInlineComments(lines[j] ?? "").trim();
