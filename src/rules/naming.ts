@@ -206,6 +206,8 @@ export function runNamingRulesSingleLine(
           }
         }
         const base = tok.replace(/[;={].*$/, "").trim();
+        // Only accept tokens that look like identifiers (skip operators like '+' '-' '*', numbers, parens, etc.)
+        if (!/^[A-Za-z_][A-Za-z0-9_]*;?$/.test(base)) continue;
         if (base.length > 0) {
           identifier = base;
           identifierStart = original.indexOf(tok);

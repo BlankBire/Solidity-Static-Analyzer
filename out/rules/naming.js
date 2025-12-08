@@ -181,14 +181,20 @@ function runNamingRulesSingleLine(line, lineIndex, naming, toggles, pushFinding,
                 // If the current line is inside a block comment, skip naming checks
                 if (commentRanges && lineStartIndices) {
                     const start = lineStartIndices[lineIndex] ?? 0;
-                    const end = lineIndex + 1 < lineStartIndices.length ? (lineStartIndices[lineIndex + 1] - 1) : undefined;
+                    const end = lineIndex + 1 < lineStartIndices.length
+                        ? lineStartIndices[lineIndex + 1] - 1
+                        : undefined;
                     for (const [cs, ce] of commentRanges) {
-                        if ((end === undefined && cs <= start) || (end !== undefined && cs <= end && ce >= start)) {
+                        if ((end === undefined && cs <= start) ||
+                            (end !== undefined && cs <= end && ce >= start)) {
                             return;
                         }
                     }
                 }
                 const base = tok.replace(/[;={].*$/, "").trim();
+                // Only accept tokens that look like identifiers (skip operators like '+' '-' '*', numbers, parens, etc.)
+                if (!/^[A-Za-z_][A-Za-z0-9_]*;?$/.test(base))
+                    continue;
                 if (base.length > 0) {
                     identifier = base;
                     identifierStart = original.indexOf(tok);

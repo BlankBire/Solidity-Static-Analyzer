@@ -145,7 +145,9 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
         if (!commentRanges || !lineStartIndices)
             return false;
         const start = lineStartIndices[lineIndex] ?? 0;
-        const end = lineIndex + 1 < lineStartIndices.length ? (lineStartIndices[lineIndex + 1] - 1) : content.length;
+        const end = lineIndex + 1 < lineStartIndices.length
+            ? lineStartIndices[lineIndex + 1] - 1
+            : content.length;
         for (const [cs, ce] of commentRanges) {
             if (cs <= end && ce >= start)
                 return true;

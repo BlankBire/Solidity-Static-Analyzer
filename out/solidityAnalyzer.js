@@ -358,7 +358,9 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
     }
     // Ensure at least one entry per line (fallback)
     while (lineStartIndices.length < lines.length) {
-        const last = lineStartIndices.length ? lineStartIndices[lineStartIndices.length - 1] : 0;
+        const last = lineStartIndices.length
+            ? lineStartIndices[lineStartIndices.length - 1]
+            : 0;
         lineStartIndices.push(last);
     }
     // parameterLineSet is available (empty if AST parsing failed)
