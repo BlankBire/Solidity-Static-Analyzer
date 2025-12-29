@@ -65,7 +65,7 @@ Dự án được xây dựng dựa trên kiến trúc 5 lớp (5-Layer Architec
 ### Chiến lược Hybrid
 
 Solidify không chỉ dựa vào AST. Để đạt tốc độ 82ms, chúng tôi sử dụng chiến lược **Hybrid**:
-*   **Regex-based (Nhanh):** Dùng Regular Expressions cho các pattern đơn giản, cục bộ (ví dụ: tìm từ khóa `tx.origin`). Tốc độ thực thi gần như tức thì ($O(n)$).
+*   **Regex-based (Nhanh):** Dùng Regular Expressions cho các pattern đơn giản, cục bộ (ví dụ: tìm từ khóa `tx.origin`). Tốc độ thực thi gần như tức thì $O(n)$.
 *   **AST-based (Sâu):** Dùng cây cú pháp trừu tượng cho các logic cần ngữ cảnh, ví dụ: "Biến này được khai báo ở đâu?", "Hàm này có visibility chưa?".
 
 ---
@@ -126,11 +126,15 @@ Một trong những module phức tạp nhất về mặt thuật toán.
 
 Chúng tôi đã thực hiện benchmark trên tập dữ liệu 300 Smart Contracts thực tế.
 
+<div align="center">
+
 | Metrics | Solidify | Compiler-based of Blanco |
 | :--- | :--- | :--- |
 | **Latency** | ~538 ms | ~2447 ms |
 | **Cơ chế** | Incremental AST + Regex | Full Compilation |
 | **Thời điểm phản hồi** | Ngay khi gõ | Khi lưu |
+
+</div>
 
 Solidify nhanh hơn **~4.5 lần** so với các công cụ truyền thống nhờ việc loại bỏ bước biên dịch nặng nề và sử dụng Tree-sitter được viết bằng C++ (binding sang Node.js).
 
