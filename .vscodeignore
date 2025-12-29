@@ -1,0 +1,46 @@
+# Source and Build
+**/*.ts
+**/*.tsbuildinfo
+**/*.map
+**/*.js.map
+src/**
+test/**
+scripts/**
+out/test/**
+README_FULL.md
+full_file_list.txt
+filelist.txt
+package.json_backup
+package.json_minimal
+.vscodeignore_backup
+.vscodeignore_test
+
+# Project Junk
+.vscode/**
+.git/**
+.github/**
+.gitignore
+.vscodeignore
+.DS_Store
+Thumbs.db
+note.txt
+paper/**
+poster/**
+bin/**
+
+# Node modules junk
+node_modules/**/test/**
+node_modules/**/tests/**
+node_modules/**/docs/**
+node_modules/**/examples/**
+node_modules/**/*.md
+node_modules/**/*.txt
+node_modules/**/*.pdf
+node_modules/**/*.html
+
+# Configs
+tsconfig.json
+package-lock.json
+
+# VSIX
+*.vsix

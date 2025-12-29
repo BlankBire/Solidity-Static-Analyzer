@@ -3,22 +3,35 @@
   "displayName": "Solidify",
   "description": "Static analysis diagnostics for Solidity smart contracts in VS Code.",
   "version": "0.0.1",
-  "publisher": "your-name",
+  "publisher": "blankbire",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://example.com/your-repo.git"
+    "url": "https://github.com/BlankBire/Solidity-Static-Analyzer"
+  },
+  "homepage": "https://github.com/BlankBire/Solidity-Static-Analyzer#readme",
+  "bugs": {
+    "url": "https://github.com/BlankBire/Solidity-Static-Analyzer/issues"
   },
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": [
+    "Linters",
     "Programming Languages",
-    "Linters"
+    "Other"
+  ],
+  "keywords": [
+    "solidity",
+    "static analysis",
+    "security",
+    "linter",
+    "smart contracts",
+    "blockchain",
+    "ethereum"
   ],
   "activationEvents": [
-    "onLanguage:solidity",
-    "workspaceContains:**/*.sol"
+    "onLanguage:solidity"
   ],
   "main": "out/extension.js",
   "contributes": {
