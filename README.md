@@ -8,17 +8,19 @@
 
 1. [Giới Thiệu & Tầm Nhìn](#giới-thiệu--tầm-nhìn)
 2. [Kiến Trúc Hệ Thống](#kiến-trúc-hệ-thống)
-    - [Mô hình 5 Lớp (The 5-Layer Architecture)](#mô-hình-5-lớp)
-    - [Chiến lược Lai (Hybrid Analysis Strategy)](#chiến-lược-lai)
+    - [Mô hình 5 Lớp](#mô-hình-5-lớp)
+    - [Chiến lược Hybrid](#chiến-lược-lai)
 3. [Phân Tích Chi Tiết Các Mô-đun](#phân-tích-chi-tiết-các-mô-đun)
-    - [Core Engine (`solidityAnalyzer.ts`)](#1-core-engine-solidityanalyzerts)
-    - [Security Module (`security.ts`)](#2-security-module-securityts)
-    - [Semantic & AST Module (`semantic.ts`)](#3-semantic--ast-module-semanticts)
-    - [Unused Variable Module (`unused.ts`)](#4-unused-variable-module-unusedts)
+    - [Core Engine](#1-core-engine-solidityanalyzerts)
+    - [Security Module](#2-security-module-securityts)
+    - [Semantic & AST Module](#3-semantic--ast-module-semanticts)
+    - [Unused Variable Module](#4-unused-variable-module-unusedts)
     - [Syntax & Pragma Modules](#5-syntax--pragma-modules)
 4. [Hiệu Năng & Thực Nghiệm](#hiệu-năng--thực-nghiệm)
-5. [Hướng Dẫn Cài Đặt & Cấu Hình](#hướng-dẫn-cài-đặt--cấu-hình)
-6. [Hướng Dẫn Dành Cho Developer](#hướng-dẫn-dành-cho-developer)
+5. [Hướng Dẫn Sử Dụng](#hướng-dẫn-sử-dụng)
+6. [Hạn Chế & Hướng Phát Triển](#hạn-chế--hướng-phát-triển)
+7. [Tuyên Bố Miễn Trừ Trách Nhiệm](#tuyên-bố-miễn-trừ-trách-nhiệm)
+8. [Giấy Phép](#giấy-phép)
 
 ---
 
@@ -36,12 +38,12 @@ Dự án được xây dựng dựa trên kiến trúc 5 lớp (5-Layer Architec
 
 ### Mô hình 5 Lớp
 
-1.  **Layer 1: VS Code Integration (`extension.ts`)**
+1.  **Layer 1: VS Code Integration**
     *   **Nhiệm vụ:** Là cầu nối giữa VS Code và bộ phân tích.
     *   **Kỹ thuật:** Sử dụng `vscode.workspace.onDidChangeTextDocument` với cơ chế **Debounce** (độ trễ 300ms) để tránh phân tích quá tải khi người dùng gõ liên tục.
     *   **Output:** Quản lý `DiagnosticCollection` để hiển thị gạch chân đỏ/vàng ngay trong editor.
 
-2.  **Layer 2: Core Analysis Engine (`solidityAnalyzer.ts`)**
+2.  **Layer 2: Core Analysis Engine**
     *   **Nhiệm vụ:** Nhạc trưởng điều phối toàn bộ quá trình. Nó nhận nội dung thô, quyết định xem nên dùng Regex hay AST, và gọi các Rule Engine tương ứng.
     *   **Kỹ thuật:** Xử lý `Tree-sitter` parser initialization, quản lý bộ nhớ đệm cho các AST nodes để tái sử dụng.
 
@@ -50,13 +52,17 @@ Dự án được xây dựng dựa trên kiến trúc 5 lớp (5-Layer Architec
     *   **Kỹ thuật:** Sử dụng **Tree-sitter** (`tree-sitter-solidity`) thay vì bộ parser của trình biên dịch `solc`.
     *   **Tại sao là Tree-sitter?** `solc` rất chậm và chỉ hoạt động khi code đúng cú pháp hoàn toàn. `Tree-sitter` có khả năng **Incremental Parsing** (phân tích gia tăng) và chịu lỗi tốt (error tolerance) - nó vẫn có thể dựng cây AST ngay cả khi đang gõ dở dang và thiếu dấu `;`.
 
-4.  **Layer 4: Modular Rules Engine (`src/rules/*.ts`)**
+4.  **Layer 4: Modular Rules Engine**
     *   **Nhiệm vụ:** Chứa logic nghiệp vụ của từng quy tắc kiểm tra. Các rules được tách biệt hoàn toàn, giúp dễ dàng thêm mới hoặc bảo trì.
 
 5.  **Layer 5: Diagnostic Display**
     *   **Nhiệm vụ:** Hiển thị kết quả cho người dùng (Problems Panel, Inline Squirrles, Quick Fixes).
 
-### Chiến lược Lai (Hybrid Analysis Strategy)
+<p align="center">
+  <img src="assets/system.png" alt="Solidify System Architecture">
+</p>
+
+### Chiến lược Hybrid
 
 Solidify không chỉ dựa vào AST. Để đạt tốc độ 82ms, chúng tôi sử dụng chiến lược **Hybrid**:
 *   **Regex-based (Nhanh):** Dùng Regular Expressions cho các pattern đơn giản, cục bộ (ví dụ: tìm từ khóa `tx.origin`). Tốc độ thực thi gần như tức thì ($O(n)$).
@@ -68,7 +74,7 @@ Solidify không chỉ dựa vào AST. Để đạt tốc độ 82ms, chúng tôi
 
 Dưới đây là tài liệu kỹ thuật chi tiết cho từng component trong thư mục `src`.
 
-### 1. Core Engine (`solidityAnalyzer.ts`)
+### 1. Core Engine
 Đây là file trung tâm. Logic hoạt động như sau:
 *   B1: Nhận `activeTextEditor` content.
 *   B2: Khởi tạo `Tree-sitter` parser (nếu chưa có).
@@ -77,7 +83,7 @@ Dưới đây là tài liệu kỹ thuật chi tiết cho từng component trong
 *   B5: Chạy lần lượt các nhóm rules (Pragma -> Semantic -> Syntax -> Security).
 *   B6: Tổng hợp kết quả `Finding[]` và trả về cho VS Code.
 
-### 2. Security Module (`security.ts`)
+### 2. Security Module
 Mô-đun này tập trung vào các lỗi bảo mật nghiêm trọng (High Severity).
 *   **Kỹ thuật:** Chủ yếu dùng **Regex** để đảm bảo tốc độ tối đa cho các lỗi này.
 *   **Các Quy Tắc (Rules):**
@@ -86,7 +92,7 @@ Mô-đun này tập trung vào các lỗi bảo mật nghiêm trọng (High Seve
     *   **`DELEGATECALL`:** Cảnh báo khi dùng `delegatecall`. (Rủi ro cao về thực thi code trong context của caller, dễ bị tấn công nếu context không sạch).
     *   **`LOW_LEVEL_CALL_VALUE`:** Phát hiện `.call{value: ...}`. (Dễ bị Reentrancy attack nếu không tuân thủ Checks-Effects-Interactions).
 
-### 3. Semantic & AST Module (`semantic.ts`)
+### 3. Semantic & AST Module
 Mô-đun này thông minh hơn, "hiểu" được code thay vì chỉ nhìn mặt chữ.
 *   **Kỹ thuật:** Duyệt cây **AST** (Abstract Syntax Tree). Sử dụng các helper như `findEnclosingFunction`, `findEnclosingContract`, `uintWidth`.
 *   **Các Quy Tắc (Rules):**
@@ -97,7 +103,7 @@ Mô-đun này thông minh hơn, "hiểu" được code thay vì chỉ nhìn mặ
     *   **`LOW_LEVEL_CALL_NO_DATA`**: Các lệnh `.call()` cấp thấp phải luôn có tham số data (hoặc `""`).
     *   **`UNCHECKED_LOW_LEVEL_CALL`**: Kiểm tra xem giá trị trả về (bool success) của `.call` có được xử lý hay không. Nếu `call` được dùng trong `expression_statement` mà không gán vào biến nào -> Báo lỗi.
 
-### 4. Unused Variable Module (`unused.ts`)
+### 4. Unused Variable Module
 Một trong những module phức tạp nhất về mặt thuật toán.
 *   **Bài toán:** Làm sao biết một biến đã khai báo nhưng không bao giờ được đọc?
 *   **Giải thuật:**
@@ -130,59 +136,52 @@ Solidify nhanh hơn **~4.5 lần** so với các công cụ truyền thống nh�
 
 ---
 
-## Hướng Dẫn Cài Đặt & Cấu Hình
+## Hướng Dẫn Sử Dụng
 
-### Yêu Cầu
-*   Visual Studio Code v1.85.0 trở lên.
-*   Node.js (nếu chạy từ source).
+Vì extension hiện đang trong giai đoạn phát triển và nghiên cứu, mọi người có thể sử dụng Solidify theo hai cách sau:
 
-### Cấu Hình (`settings.json`)
-Có thể bật tắt từng rule tùy ý trong phần Settings của VS Code:
+### Cách 1: Sử dụng bộ cài đặt (.vsix)
+Nếu muốn áp dụng Solidify vào môi trường VS Code:
+1. Tải file `solidity-static-analyzer-0.0.1.vsix` từ repository.
+2. Mở VS Code, đi tới tab **Extensions** (`Ctrl+Shift+X`).
+3. Click vào biểu tượng **...** (Views and More Actions) ở góc trên bên phải.
+4. Chọn **Install from VSIX...** và trỏ tới file vừa tải về.
+5. Sau khi cài đặt, extension sẽ tự động kích hoạt khi mở một file `.sol`.
 
-```json
-{
-    "solidityStaticAnalyzer.enable": true,
-    // Security Rules
-    "solidityStaticAnalyzer.rules.txOrigin": true,
-    "solidityStaticAnalyzer.rules.selfdestruct": true,
-    "solidityStaticAnalyzer.rules.uncheckedLowLevelCall": true,
-    
-    // Semantic Rules
-    "solidityStaticAnalyzer.rules.missingVisibility": true,
-    "solidityStaticAnalyzer.rules.unsafeAddressCast": true,
-    
-    // Style & Syntax
-    "solidityStaticAnalyzer.rules.missingSemicolon": true,
-    "solidityStaticAnalyzer.maxProblems": 100
-}
-```
+### Cách 2: Chạy trong môi trường Debug
+Nếu muốn tạo 1 cửa sổ riêng để debug extension:
+1. Mở project bằng VS Code.
+2. Nhấn **F5** (hoặc tab Debug -> Start Debugging).
+3. Một cửa sổ **Extension Development Host** mới sẽ hiện ra. Tại đây, extension Solidify đã được tải và sẵn sàng sử dụng.
 
 ---
 
-## Hướng Dẫn Dành Cho Developer
+## Hạn Chế & Hướng Phát Triển
 
-Nếu muốn đóng góp hoặc nghiên cứu mã nguồn:
+### Hạn Chế Hiện Tại
+*   Quy trình phân phối hiện tại mới chỉ dừng lại ở việc tạo file cài đặt thủ công (`.vsix`).
+*   Chưa được tích hợp chính thức lên VS Code Marketplace để tìm kiếm và cài đặt tự động.
 
-1.  **Clone repository:**
-    ```bash
-    git clone https://github.com/BlankBire/Solidity-Static-Analyzer.git
-    cd solidity-static-analyzer
-    ```
-2.  **Cài đặt dependencies:**
-    ```bash
-    npm install
-    # Lưu ý: cần cài đặt node-gyp để build tree-sitter
-    ```
-3.  **Chạy Extension (Debug Mode):**
-    *   Mở thư mục trong VS Code.
-    *   Nhấn **F5** để mở cửa sổ "Extension Development Host".
-4.  **Chạy Scripts test:**
-    Trong `package.json` có sẵn các scripts để test từng rule:
-    ```bash
-    npm run dev:unusedVariables
-    npm run dev:txOrigin
-    ```
-5.  **Build:**
-    ```bash
-    npm run compile
-    ```
+### Hướng Phát Triển Tương Lai
+*   **Marketplace Integration:** Hoàn thiện các tiêu chuẩn bảo mật và metadata để publish extension lên VS Code Marketplace chính thức, giúp người dùng dễ dàng search và install.
+*   **Security Updates:** Cập nhật thêm nhiều rule engine mới cho các lỗ hổng bảo mật DeFi mới nổi.
+*   **Quick Fixes:** Bổ sung tính năng tự động sửa lỗi (Auto-fix) cho các lỗi cú pháp đơn giản.
+
+---
+
+## Tuyên Bố Miễn Trừ Trách Nhiệm
+
+Công cụ này được phát triển hoàn toàn cho mục đích **nghiên cứu và học tập**. Tác giả không chịu bất kỳ trách nhiệm nào đối với:
+*   Bất kỳ thiệt hại về tài sản, dữ liệu hoặc bảo mật nào phát sinh từ việc sử dụng công cụ này.
+*   Việc sử dụng công cụ này vào các mục đích xấu, tấn công hoặc khai thác lỗ hổng bất hợp pháp.
+*   Các sai sót trong kết quả phân tích (công cụ có thể có False Positives hoặc False Negatives).
+
+Người dùng tự chịu trách nhiệm hoàn toàn khi sử dụng công cụ này trên các mã nguồn thực tế hoặc môi trường Mainnet.
+
+---
+
+## Giấy Phép
+
+Dự án này được phát hành dưới giấy phép **MIT License**. Mọi người có quyền tự do sử dụng, sao chép, sửa đổi và phân phối lại mã nguồn này theo các điều khoản của giấy phép. Xem chi tiết tại [LICENSE](LICENSE).
+
+---
