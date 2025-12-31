@@ -19,8 +19,8 @@ export interface DeclaredDecl {
 }
 
 /**
- * Report UNUSED_VARIABLE diagnostics using a scope-aware search within each declaration's scope.
- * Flags locals, parameters, return variables, and (optionally) state variables that are written but never read.
+ * Báo cáo các phát hiện UNUSED_VARIABLE bằng cách tìm kiếm theo phạm vi (scope) trong phạm vi khai báo.
+ * Gắn cờ cho các biến cục bộ, tham số, biến trả về và (tùy chọn) biến trạng thái được ghi nhưng chưa bao giờ được đọc.
  */
 export function runUnusedVariables(
   content: string,
@@ -199,13 +199,13 @@ export function runUnusedVariables(
   ): string => {
     switch (kind) {
       case "state":
-        return `State variable '${name}' is never read.`;
+        return `Biến trạng thái '${name}' chưa bao giờ được đọc.`;
       case "parameter":
-        return `Function parameter '${name}' is never used.`;
+        return `Tham số hàm '${name}' chưa bao giờ được sử dụng.`;
       case "return":
-        return `Named return variable '${name}' is never used.`;
+        return `Biến trả về có tên '${name}' chưa bao giờ được sử dụng.`;
       default:
-        return `Local variable '${name}' is never read.`;
+        return `Biến cục bộ '${name}' chưa bao giờ được đọc.`;
     }
   };
 

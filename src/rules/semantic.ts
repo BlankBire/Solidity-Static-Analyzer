@@ -281,7 +281,7 @@ export function runSemanticRulesAst(
               startPos.row,
               startPos.column,
               fnNameNode.endPosition?.column ?? startPos.column + fnName.length,
-              "Replace legacy constructor syntax with the 'constructor' keyword in Solidity 0.5+.",
+              "Hãy thay thế cú pháp constructor cũ bằng từ khóa 'constructor' từ Solidity 0.5+.",
               "LEGACY_CONSTRUCTOR",
               severity
             );
@@ -309,7 +309,7 @@ export function runSemanticRulesAst(
           startPos.row,
           startPos.column,
           endColumn,
-          "Anonymous fallback syntax is deprecated. Use 'fallback() external' or 'receive() external payable' instead of 'function()'.",
+          "Cú pháp fallback ẩn danh đã lỗi thời. Hãy sử dụng 'fallback() external' hoặc 'receive() external payable' thay vì 'function()'.",
           "LEGACY_FALLBACK_FUNCTION",
           severity
         );
@@ -353,7 +353,7 @@ export function runSemanticRulesAst(
           startPos.row,
           startPos.column,
           endPos.column,
-          "No visibility specified. Did you intend to add 'public'?",
+          "Chưa xác định visibility. Bạn có định thêm 'public' không?",
           "MISSING_VISIBILITY",
           vscode.DiagnosticSeverity.Error
         );
@@ -399,7 +399,7 @@ export function runSemanticRulesAst(
                     startPos.row,
                     startPos.column,
                     primitive.endPosition.column,
-                    `Explicit type conversion from 'address' to '${typeText.trim()}' is disallowed.`,
+                    `Chuyển đổi kiểu dữ liệu tường minh từ 'address' sang '${typeText.trim()}' không được phép.`,
                     "UNSAFE_ADDRESS_CAST",
                     vscode.DiagnosticSeverity.Error
                   );
@@ -432,7 +432,7 @@ export function runSemanticRulesAst(
             startPos.row,
             startPos.column,
             endPos.column,
-            "'this.balance' is deprecated. Use address(this).balance instead.",
+            "'this.balance' đã lỗi thời. Hãy sử dụng address(this).balance thay thế.",
             "DEPRECATED_THIS_BALANCE",
             vscode.DiagnosticSeverity.Error
           );
@@ -466,7 +466,7 @@ export function runSemanticRulesAst(
             startPos.row,
             startPos.column,
             endPos.column,
-            "Cast msg.sender to payable(msg.sender) before calling transfer/send.",
+            "Hãy ép kiểu msg.sender thành payable(msg.sender) trước khi gọi transfer/send.",
             "MSG_SENDER_TRANSFER",
             vscode.DiagnosticSeverity.Error
           );
@@ -485,7 +485,7 @@ export function runSemanticRulesAst(
             startPos.row,
             startPos.column,
             endPos.column,
-            'Low-level call requires a calldata argument. Pass a bytes payload (use "" for empty calldata).',
+            'Lời gọi hàm cấp thấp yêu cầu đối số calldata. Hãy truyền vào bytes payload (sử dụng "" nếu calldata trống).',
             "LOW_LEVEL_CALL_NO_DATA",
             vscode.DiagnosticSeverity.Error
           );
@@ -528,7 +528,7 @@ export function runSemanticRulesAst(
               startPos.row,
               startPos.column,
               endPos.column,
-              "Low-level call result ignored. Capture the boolean success flag and handle failures explicitly.",
+              "Kết quả của lời gọi hàm cấp thấp bị bỏ qua. Hãy thu thập cờ boolean thành công và xử lý lỗi cụ thể.",
               "UNCHECKED_LOW_LEVEL_CALL",
               vscode.DiagnosticSeverity.Error
             );
@@ -550,7 +550,7 @@ export function runSemanticRulesAst(
                 startPos.row,
                 startPos.column,
                 endPos.column,
-                "Low-level call returns (bool success, bytes data); destructure the tuple before passing into require/assert.",
+                "Lời gọi hàm cấp thấp trả về (bool success, bytes data); hãy phân tách tuple trước khi truyền vào require/assert.",
                 "LOW_LEVEL_CALL_TUPLE",
                 vscode.DiagnosticSeverity.Error
               );
@@ -574,7 +574,7 @@ export function runSemanticRulesAst(
                   requireStart.row,
                   requireStart.column,
                   requireEnd.column,
-                  "require/assert expects a boolean success flag; destructure the low-level call tuple before passing it in.",
+                  "require/assert mong đợi một cờ boolean thành công; hãy phân tách tuple của lời gọi hàm cấp thấp trước khi truyền vào.",
                   "REQUIRE_LOW_LEVEL_CALL_TUPLE",
                   vscode.DiagnosticSeverity.Error
                 );
@@ -625,7 +625,7 @@ export function runSemanticRulesAst(
                 idNode.startPosition.row,
                 idNode.startPosition.column,
                 idNode.endPosition.column,
-                `Try returns binding '${name}' shadows a ${shadowTarget} with the same name. Rename the try returns variable to avoid confusion.`,
+                `Biến binding '${name}' trong try returns bị trùng tên với một ${shadowTarget}. Hãy đổi tên biến try returns để tránh gây nhầm lẫn.`,
                 "TRY_RETURN_SHADOWING",
                 vscode.DiagnosticSeverity.Warning
               );
@@ -644,7 +644,7 @@ export function runSemanticRulesAst(
                 idNode.startPosition.row,
                 idNode.startPosition.column,
                 idNode.endPosition.column,
-                `Try returns binding '${name}' is never read inside the success block. Remove it or use the value inside the try block.`,
+                `Biến binding '${name}' trong try returns chưa bao giờ được đọc trong thành công block. Hãy xóa nó hoặc sử dụng giá trị này bên trong try block.`,
                 "UNUSED_TRY_RETURN",
                 vscode.DiagnosticSeverity.Warning
               );

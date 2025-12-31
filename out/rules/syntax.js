@@ -38,6 +38,9 @@ exports.runBracesGlobal = runBracesGlobal;
 exports.runParenthesesGlobal = runParenthesesGlobal;
 exports.runMissingReturnAst = runMissingReturnAst;
 const vscode = __importStar(require("vscode"));
+/**
+ * Danh sách các từ khóa dự phòng để tránh báo lỗi thiếu kiểu dữ liệu nhầm.
+ */
 const RESERVED_MISSING_TYPE_KEYWORDS = new Set([
     "payable",
     "public",
@@ -55,6 +58,9 @@ const RESERVED_MISSING_TYPE_KEYWORDS = new Set([
     "receive",
     "_",
 ]);
+/**
+ * Từ khóa bổ trợ khi gọi hàm hoặc khai báo.
+ */
 const CALL_MODIFIER_KEYWORDS = new Set([
     "public",
     "private",
@@ -69,6 +75,9 @@ const CALL_MODIFIER_KEYWORDS = new Set([
     "storage",
     "calldata",
 ]);
+/**
+ * Các kiểu dữ liệu cơ bản trong Solidity.
+ */
 const CALL_TYPE_KEYWORDS = new Set([
     "bool",
     "string",
@@ -79,6 +88,9 @@ const CALL_TYPE_KEYWORDS = new Set([
     "int256",
     "uint256",
 ]);
+/**
+ * Từ khóa xuất hiện sau kiểu dữ liệu.
+ */
 const CALL_POST_TYPE_KEYWORDS = new Set([
     "storage",
     "memory",
@@ -91,6 +103,9 @@ const CALL_POST_TYPE_KEYWORDS = new Set([
     "override",
     "immutable",
 ]);
+/**
+ * Các từ khóa lệnh dự phòng.
+ */
 const CALL_RESERVED_NAMES = new Set([
     "return",
     "emit",
@@ -100,7 +115,9 @@ const CALL_RESERVED_NAMES = new Set([
     "break",
     "continue",
 ]);
-/** Per-line syntax checks excluding braces/paren global passes */
+/**
+ * Kiểm tra cú pháp trên từng dòng (không bao gồm kiểm tra ngoặc nhọn/ngoặc đơn tổng quát).
+ */
 function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, content, pushFinding, declaredIdentifiers, missingTypeIdentifiers, paramLineSet, commentRanges, lineStartIndices) {
     const stripInlineComments = (s) => s.split("//")[0];
     const declaredIds = declaredIdentifiers || new Set();
@@ -112,6 +129,9 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
             return;
         missingIds.add(name);
     };
+    /**
+     * Phân tách các đoạn chuỗi (string literal) trong dòng để tránh kiểm tra cú pháp nhầm trong chuỗi.
+     */
     const stringSegments = (() => {
         const spans = [];
         let currentQuote = null;
@@ -122,7 +142,7 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
             const next = i + 1 < line.length ? line[i + 1] : "";
             if (!currentQuote) {
                 if (ch === "/" && next === "/") {
-                    break; // rest of line is comment, no string spans needed
+                    break; // Phần còn lại của dòng là comment
                 }
                 if (ch === '"' || ch === "'") {
                     currentQuote = ch;
@@ -138,9 +158,9 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
         return spans;
     })();
     const isInsideString = (idx) => stringSegments.some(([s, e]) => idx >= s && idx < e);
-    // Determine if this line is inside a function parameter list using AST-derived set
+    // Kiểm tra xem dòng hiện tại có nằm trong danh sách tham số hàm hay không (sử dụng thông tin từ AST)
     let isInsideFunctionParams = !!(paramLineSet && paramLineSet.has(lineIndex));
-    // Determine if this line is inside a block comment (using AST-provided commentRanges)
+    // Kiểm tra xem dòng hiện tại có nằm trong block comment (/* ... */) hay không
     const isInsideBlockComment = (() => {
         if (!commentRanges || !lineStartIndices)
             return false;
@@ -156,7 +176,7 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
     })();
     if (isInsideBlockComment)
         return;
-    // Fallback: if AST info not available, use text-based heuristic
+    // Cơ chế Fallback: Nếu không có thông tin AST, sử dụng kỹ thuật heuristic dựa trên văn bản
     if (!isInsideFunctionParams) {
         try {
             const currentIndex = lines.indexOf(line);
@@ -184,7 +204,7 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
         }
         catch { }
     }
-    // 5. MISSING_SEMICOLON
+    // 1. QUY TẮC: MISSING_SEMICOLON (Thiếu dấu chấm phẩy)
     if (config.missingSemicolon) {
         const trimmedLine = line.trim();
         const isCommentOrBlank = (s) => {
@@ -197,7 +217,7 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
                 idx -= 1;
             return Math.max(0, idx);
         };
-        // Simple declarations missing semicolon
+        // Kiểm tra các khai báo đơn giản thiếu dấu chấm phẩy
         const basicTypePattern = /^(?:uint\d*|int\d*|uint|int|address|bool|string|bytes\d*|bytes)\b/i;
         const mappingTypePattern = /^mapping\s*\(/i;
         const lineForDeclCheck = stripInlineComments(line).trim();
@@ -205,7 +225,7 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
             mappingTypePattern.test(lineForDeclCheck)) &&
             !lineForDeclCheck.includes(" function ") &&
             !lineForDeclCheck.endsWith(";")) {
-            // If this line is inside a multi-line function parameter list, skip
+            // Bỏ qua nếu dòng này nằm trong danh sách tham số hàm nhiều dòng
             if (isInsideFunctionParams)
                 return;
             const previousCodeLine = (() => {
@@ -220,18 +240,18 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
             if (/\b(function|modifier|constructor)\b/i.test(previousCodeLine) ||
                 /^(?:contract|interface|library)\b/i.test(lineForDeclCheck) ||
                 lineForDeclCheck.endsWith("{")) {
-                // Part of a multi-line function signature; skip.
+                // Có vẻ là một phần của khai báo hàm nhiều dòng; bỏ qua.
                 return;
             }
             const lastChar = trimmedLine.slice(-1);
             if (lastChar === "(" || lastChar === "" || lastChar === ":") {
-                // Likely mid-signature (parameters/modifiers).
+                // Có thể đang ở giữa chừng một khai báo (tham số/modifier); bỏ qua.
                 return;
             }
             const idx = getLastCodeCharIndex(line);
-            pushFinding(lineIndex, idx, idx + 1, "Missing semicolon at end of statement.", "MISSING_SEMICOLON", vscode.DiagnosticSeverity.Error);
+            pushFinding(lineIndex, idx, idx + 1, "Thiếu dấu chấm phẩy ở cuối câu lệnh.", "MISSING_SEMICOLON", vscode.DiagnosticSeverity.Error);
         }
-        // Multi-line statement ending with ')' no ';'
+        // Câu lệnh nhiều dòng kết thúc bằng ')' nhưng không có ';'
         if (stripInlineComments(trimmedLine).endsWith(")") &&
             !stripInlineComments(trimmedLine).endsWith(";") &&
             !isCommentOrBlank(trimmedLine)) {
@@ -272,11 +292,11 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
                 }
                 if (foundStarter) {
                     const idx = getLastCodeCharIndex(line);
-                    pushFinding(lineIndex, idx, idx + 1, "Missing semicolon at end of statement.", "MISSING_SEMICOLON", vscode.DiagnosticSeverity.Error);
+                    pushFinding(lineIndex, idx, idx + 1, "Thiếu dấu chấm phẩy ở cuối câu lệnh.", "MISSING_SEMICOLON", vscode.DiagnosticSeverity.Error);
                 }
             }
         }
-        // Single identifier dangling
+        // Một identifier đứng một mình không có chấm phẩy
         const singleIdentifierPattern = /^\s*[A-Za-z_][A-Za-z0-9_]*\s*$/;
         const standaloneAllowed = new Set([
             "public",
@@ -299,7 +319,7 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
             const trimmedLower = trimmedLine.toLowerCase();
             const shouldSkipSingleIdentifier = (() => {
                 if (standaloneAllowed.has(trimmedLower)) {
-                    // Likely a visibility/modifier line broken across multiple lines.
+                    // Có khả năng là một từ khóa visibility/modifier được ngắt dòng.
                     return true;
                 }
                 const prevCodeLine = (() => {
@@ -323,7 +343,7 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
                 if (/\b(function|modifier|constructor)\b/i.test(prevCodeLine) ||
                     /[){};]$/.test(prevCodeLine) ||
                     /^returns\b/i.test(nextCodeLine)) {
-                    // Previous line already looks like the start of a declaration.
+                    // Dòng trước đó trông giống như bắt đầu của một khai báo.
                     return true;
                 }
                 return false;
@@ -331,16 +351,16 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
             if (!shouldSkipSingleIdentifier) {
                 if (!/^\s*(function|modifier|event|struct|enum|contract|interface|library|import|pragma|using|constructor)\b/i.test(trimmedLine)) {
                     const idx = getLastCodeCharIndex(line);
-                    pushFinding(lineIndex, idx, idx + 1, "Missing semicolon at end of statement.", "MISSING_SEMICOLON", vscode.DiagnosticSeverity.Error);
+                    pushFinding(lineIndex, idx, idx + 1, "Thiếu dấu chấm phẩy ở cuối câu lệnh.", "MISSING_SEMICOLON", vscode.DiagnosticSeverity.Error);
                 }
             }
         }
     }
-    // 6. MISSING_PARENTHESES (per-line heuristics)
+    // 2. QUY TẮC: MISSING_PARENTHESES (Thiếu dấu ngoặc đơn - Heuristic theo dòng)
     if (config.missingParentheses) {
         const trimmedLine = line.trim();
         if (trimmedLine !== "") {
-            // Control statements must be followed by '('
+            // Các lệnh điều khiển (if/for/while) phải có '(' ngay sau
             const controlRx = /^\s*(if|for|while)\b/;
             const controlMatch = line.match(controlRx);
             if (controlMatch) {
@@ -361,11 +381,11 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
                 };
                 if (nextCh !== "(") {
                     if (!allowMultiLineParen()) {
-                        pushFinding(lineIndex, kwIdx, kwIdx + kw.length, `Missing parentheses after '${kw}'.`, "MISSING_PARENTHESES", vscode.DiagnosticSeverity.Error);
+                        pushFinding(lineIndex, kwIdx, kwIdx + kw.length, `Thiếu dấu ngoặc đơn sau '${kw}'.`, "MISSING_PARENTHESES", vscode.DiagnosticSeverity.Error);
                     }
                 }
             }
-            // Function-call style without parentheses e.g., `transfer msg.sender;`
+            // Gọi hàm không có ngoặc đơn (ví dụ: `transfer msg.sender;`)
             const declOrKeyword = /\b(function|contract|interface|library|event|modifier|struct|enum|pragma|import|using)\b/i;
             const stmtKeywordRx = /^\s*(return|emit|require|assert|revert|break|continue)\b/i;
             if (!declOrKeyword.test(line) && !stmtKeywordRx.test(line)) {
@@ -381,7 +401,7 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
                     const nextParen = after.indexOf("(");
                     const nextSemi = after.indexOf(";");
                     if (nextParen >= 0 && (nextSemi === -1 || nextParen < nextSemi)) {
-                        continue; // has parentheses — OK
+                        continue; // Đã có ngoặc đơn - OK
                     }
                     if (CALL_MODIFIER_KEYWORDS.has(nameLower))
                         continue;
@@ -391,7 +411,7 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
                         continue;
                     const prefix = line.slice(0, nameIdx);
                     if (prefix.indexOf(")") !== -1)
-                        continue; // likely declaration tail
+                        continue; // Khả năng là phần đuôi của một khai báo
                     if (/^(?:uint\d*|int\d*|address|bool|string|bytes\d*|bytes|mapping)\b/i.test(line.trim()))
                         continue;
                     const afterNameTrim = after.trimLeft();
@@ -407,28 +427,28 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
                     }
                     const lineEndsCallish = /[;,)\]}\s]$/.test(line) || /;/.test(line);
                     if (lineEndsCallish) {
-                        // If this is a bare variable or declared identifier usage, skip
+                        // Nếu đây là sử dụng biến thuần hoặc identifier đã khai báo, bỏ qua
                         const idName = name.split(".")[0];
                         if (declaredIds.has(idName)) {
                             continue;
                         }
-                        pushFinding(lineIndex, nameIdx, nameIdx + name.length, "Missing parentheses for function call.", "MISSING_PARENTHESES", vscode.DiagnosticSeverity.Error);
+                        pushFinding(lineIndex, nameIdx, nameIdx + name.length, "Thiếu dấu ngoặc đơn khi gọi hàm.", "MISSING_PARENTHESES", vscode.DiagnosticSeverity.Error);
                     }
                 }
             }
         }
     }
-    // WRONG_KEYWORDS
+    // 3. QUY TẮC: WRONG_KEYWORDS (Từ khóa sai/cũ)
     if (config.wrongKeywords) {
         const wrongPatterns = [
             {
                 rx: /\b(var\s+)/i,
-                message: "Use specific data type instead of 'var'",
+                message: "Sử dụng kiểu dữ liệu cụ thể thay vì 'var'",
                 capture: 1,
             },
             {
                 rx: /\b(suicide\s*\()/i,
-                message: "'suicide' is deprecated, use 'selfdestruct'",
+                message: "'suicide' đã lỗi thời, hãy sử dụng 'selfdestruct'",
                 capture: 1,
             },
         ];
@@ -441,11 +461,11 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
             }
         }
     }
-    // MISSING_DATA_TYPE (declaration and usage tracking)
+    // 4. QUY TẮC: MISSING_DATA_TYPE (Thiếu khai báo kiểu dữ liệu)
     if (config.missingDataType) {
         const noComment = stripInlineComments(line);
         try {
-            // Remember declared identifiers in typed declarations to avoid false positives later
+            // Ghi nhớ các identifier đã có kiểu dữ liệu đầy đủ để tránh báo lỗi nhầm sau này
             const typeKeywordPattern = /^(?:.*\b(?:uint\d*|int\d*|uint|int|address|bool|string|bytes\d*|bytes|mapping)\b)/i;
             if (!/\bfunction\b/i.test(noComment) &&
                 typeKeywordPattern.test(noComment)) {
@@ -486,7 +506,7 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
             }
         }
         catch { }
-        // 9.1 Untyped assignment at start-of-statement or after ';' or '{'
+        // 4.1 Gán giá trị mà không khai báo kiểu ở đầu câu lệnh
         const assignRx = /(^(?:\s*)|[;{]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*=/g;
         let mAssign;
         while ((mAssign = assignRx.exec(noComment)) !== null) {
@@ -498,23 +518,23 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
                 continue;
             }
             const nameStart = mAssign.index + prefix.length;
-            pushFinding(lineIndex, nameStart, nameStart + name.length, "Missing data type declaration for variable.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
+            pushFinding(lineIndex, nameStart, nameStart + name.length, "Thiếu khai báo kiểu dữ liệu cho biến.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
             addMissingId(name);
             if (assignRx.lastIndex === mAssign.index)
                 assignRx.lastIndex += 1;
         }
-        // 9.1.a Array declaration missing element type: [] a; or [] a = ...
+        // 4.1.a Khai báo mảng thiếu kiểu phần tử: [] a; hoặc [] a = ...
         const arrayDeclRx = /(^(?:\s*)|[;{]\s*)(\[\s*\])\s*([A-Za-z_][A-Za-z0-9_]*)\s*(;|=)/g;
         let mArray;
         while ((mArray = arrayDeclRx.exec(noComment)) !== null) {
             const prefix = mArray[1] || "";
             const bracket = mArray[2];
             const bracketStart = mArray.index + prefix.length;
-            pushFinding(lineIndex, bracketStart, bracketStart + bracket.length, "Missing data type declaration for variable.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
+            pushFinding(lineIndex, bracketStart, bracketStart + bracket.length, "Thiếu khai báo kiểu dữ liệu cho biến.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
             if (arrayDeclRx.lastIndex === mArray.index)
                 arrayDeclRx.lastIndex += 1;
         }
-        // 9.1.b Tuple assignment untyped identifiers: (a, ...) = ...
+        // 4.1.b Gán giá trị tuple cho các identifier chưa có kiểu: (a, ...) = ...
         const tuple = noComment.match(/\(([^)]*)\)\s*=/);
         if (tuple && tuple.index !== undefined) {
             const inside = tuple[1];
@@ -533,17 +553,17 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
                     const idMatch = part.match(/[A-Za-z_][A-Za-z0-9_]*/);
                     if (idMatch && idMatch.index !== undefined) {
                         const startCol = cursor + idMatch.index;
-                        pushFinding(lineIndex, startCol, startCol + idMatch[0].length, "Missing data type declaration for variable.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
+                        pushFinding(lineIndex, startCol, startCol + idMatch[0].length, "Thiếu khai báo kiểu dữ liệu cho biến.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
                         addMissingId(idMatch[0]);
                     }
                 }
                 cursor += part.length + 1;
             }
         }
-        // 9.1.c Declaration ending with ';' without '=' and without type
+        // 4.1.c Khai báo kết thúc bằng ';' nhưng không có '=' và không có kiểu
         const semiDecl = noComment.match(/^\s*(public|private|internal|external)?\s*([A-Za-z_][A-Za-z0-9_]*)\s*;\s*$/);
         if (semiDecl && semiDecl.index !== undefined) {
-            const hasType = /(uint\d*|int\d*|uint|int|address|bool|string|bytes\d*|bytes|mapping\s*\(|struct\s+\w+|enum\s+\w+)/i.test(noComment);
+            const hasType = /(uint\d*|int\d*|uint|int|address|bool|string|bytes\d*|bytes|mapping\s*\(|struct\s+\w+|enum\s+\w+|calldata|memory|storage)/i.test(noComment);
             if (!hasType) {
                 const name = semiDecl[2];
                 const reservedBareKeywords = new Set([
@@ -559,13 +579,13 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
                 if (!reservedBareKeywords.has(name.toLowerCase())) {
                     const nameIdx = noComment.indexOf(name);
                     if (nameIdx >= 0) {
-                        pushFinding(lineIndex, nameIdx, nameIdx + name.length, "Missing data type declaration for variable.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
+                        pushFinding(lineIndex, nameIdx, nameIdx + name.length, "Thiếu khai báo kiểu dữ liệu cho biến.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
                         addMissingId(name);
                     }
                 }
             }
         }
-        // 9.2 Function parameter list checks (single-line heuristics)
+        // 4.2 Kiểm tra danh sách tham số hàm (heuristic cho dòng đơn)
         const funcSig = noComment.match(/\bfunction\b[^\{]*\(([^)]*)\)/);
         if (funcSig && funcSig.index !== undefined) {
             const paramsStr = funcSig[1];
@@ -584,7 +604,7 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
                     const bracketRel = raw.slice(leading).indexOf("[");
                     if (bracketRel >= 0) {
                         const bracketStart = cursor + leading + bracketRel;
-                        pushFinding(lineIndex, bracketStart, bracketStart + 2, "Missing data type declaration for variable.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
+                        pushFinding(lineIndex, bracketStart, bracketStart + 2, "Thiếu khai báo kiểu dữ liệu cho biến.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
                         cursor += raw.length + 1;
                         continue;
                     }
@@ -595,13 +615,13 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
                     if (idMatch && idMatch.index !== undefined) {
                         const startCol = cursor + idMatch.index;
                         const len = idMatch[0].length;
-                        pushFinding(lineIndex, startCol, startCol + len, "Missing data type declaration for variable.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
+                        pushFinding(lineIndex, startCol, startCol + len, "Thiếu khai báo kiểu dữ liệu cho biến.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
                         addMissingId(idMatch[0]);
                     }
                 }
                 cursor += raw.length + 1;
             }
-            // 9.2.c Ensure identifiers without types between commas
+            // Ensure identifiers without types between commas
             const reUntypedParam = /(?:^|,)\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?=,|$)/g;
             let mUntyped;
             while ((mUntyped = reUntypedParam.exec(paramsStr)) !== null) {
@@ -612,12 +632,12 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
                 const hasTypeInSeg = /(uint\d*|int\d*|uint|int|address|bool|string|bytes\d*|bytes|mapping\s*\(|struct\s+\w+|enum\s+\w+|calldata|memory|storage)/i.test(segment);
                 if (!hasTypeInSeg) {
                     const absIdx = noComment.indexOf(paramsStr) + segStart + segment.indexOf(ident);
-                    pushFinding(lineIndex, absIdx, absIdx + ident.length, "Missing data type declaration for variable.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
+                    pushFinding(lineIndex, absIdx, absIdx + ident.length, "Thiếu khai báo kiểu dữ liệu cho biến.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
                 }
                 if (reUntypedParam.lastIndex === mUntyped.index)
                     reUntypedParam.lastIndex += 1;
             }
-            // 9.2.d Tail parameter without type before ')'
+            // Tail parameter without type before ')'
             const tail = paramsStr.match(/,\s*([A-Za-z_][A-Za-z0-9_]*)\s*$/);
             if (tail && tail.index !== undefined) {
                 const segStart = tail.index;
@@ -626,7 +646,7 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
                 if (!hasTypeInSeg) {
                     const ident = tail[1];
                     const absIdx = noComment.indexOf(paramsStr) + segStart + segment.indexOf(ident);
-                    pushFinding(lineIndex, absIdx, absIdx + ident.length, "Missing data type declaration for variable.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
+                    pushFinding(lineIndex, absIdx, absIdx + ident.length, "Thiếu khai báo kiểu dữ liệu cho biến.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
                 }
             }
         }
@@ -654,7 +674,7 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
                     continue;
                 }
                 const absIdx = baseIndex + relIdx;
-                pushFinding(lineIndex, absIdx, absIdx + 2, "Missing data type declaration for variable.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
+                pushFinding(lineIndex, absIdx, absIdx + 2, "Thiếu khai báo kiểu dữ liệu cho biến.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
                 if (reEmptyArrayParam.lastIndex === mArr.index)
                     reEmptyArrayParam.lastIndex += 1;
             }
@@ -671,7 +691,7 @@ function runSyntaxRulesSingleLine(line, lineLower, lineIndex, lines, config, con
                 const mUse = noComment.match(rx);
                 if (mUse && mUse.index !== undefined) {
                     const start = mUse.index;
-                    pushFinding(lineIndex, start, start + id.length, "Missing data type declaration for variable.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
+                    pushFinding(lineIndex, start, start + id.length, "Thiếu khai báo kiểu dữ liệu cho biến.", "MISSING_DATA_TYPE", vscode.DiagnosticSeverity.Error);
                 }
             }
         }

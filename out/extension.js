@@ -37,30 +37,39 @@ exports.activate = activate;
 exports.deactivate = deactivate;
 const vscode = __importStar(require("vscode"));
 const solidityAnalyzer_1 = require("./solidityAnalyzer");
-// File entry point của VS Code extension.
-// Vai trò:
-// - Tạo và quản lý DiagnosticCollection (để hiện cảnh báo/lỗi trong Problems panel).
-// - Lắng nghe sự kiện mở/sửa/lưu tài liệu Solidity và kích hoạt phân tích.
-// - Đọc Settings của extension và truyền vào bộ phân tích cốt lõi.
+/**
+ * Điểm vào (Entry point) của VS Code extension.
+ *
+ * Vai trò chính:
+ * - Khởi tạo và quản lý DiagnosticCollection (hiển thị lỗi/cảnh báo trong Problems panel).
+ * - Theo dõi các sự kiện mở, sửa và lưu file Solidity để kích hoạt bộ phân tích.
+ * - Đọc cấu hình (Settings) của extension và chuyển giao cho bộ phân tích lõi.
+ */
 let diagnosticCollection;
 let analysisTimeout;
+/**
+ * Hàm kích hoạt extension.
+ * @param context Ngữ cảnh của extension từ VS Code.
+ */
 function activate(context) {
-    // Đọc cấu hình của extension từ Settings (solidityStaticAnalyzer.*)
+    // Lấy cấu hình của extension từ Settings (solidityStaticAnalyzer.*)
     const config = vscode.workspace.getConfiguration("solidityStaticAnalyzer");
     const isEnabled = config.get("enable", true);
-    // Tập hợp chẩn đoán để VS Code hiển thị gạch chân/cảnh báo
+    // Tạo DiagnosticCollection để VS Code hiển thị các gạch chân cảnh báo
     diagnosticCollection = vscode.languages.createDiagnosticCollection("solidity-static-analyzer");
     context.subscriptions.push(diagnosticCollection);
     if (!isEnabled) {
-        // Nếu người dùng tắt extension → không làm gì thêm
+        // Nếu extension bị tắt trong cài đặt thì dừng tại đây
         return;
     }
-    // Có thể dùng selector này nếu cần lọc tài liệu theo ngôn ngữ/scheme
+    // Bộ chọn tài liệu: Chỉ áp dụng cho các tệp ngôn ngữ 'solidity' từ hệ thống tệp
     const supportedSelector = {
         language: "solidity",
         scheme: "file",
     };
-    // Phân tích tài liệu hiện đang mở (nếu là Solidity)
+    /**
+     * Thực hiện phân tích trên trình soạn thảo đang hoạt động.
+     */
     const analyzeActive = () => {
         const editor = vscode.window.activeTextEditor;
         if (!editor) {
@@ -71,63 +80,73 @@ function activate(context) {
         }
         runAnalysis(editor.document);
     };
+    // Đăng ký các sự kiện lắng nghe
     context.subscriptions.push(
-    // Khi mở 1 tài liệu mới
+    // Khi một tài liệu được mở
     vscode.workspace.onDidOpenTextDocument((doc) => {
         if (doc.languageId === "solidity") {
             runAnalysis(doc);
         }
     }), 
-    // Khi nội dung tài liệu thay đổi (gõ phím) - với debounce
+    // Khi nội dung tài liệu thay đổi (kèm cơ chế debounce để tối ưu hiệu năng)
     vscode.workspace.onDidChangeTextDocument((e) => {
         if (e.document.languageId === "solidity") {
-            // Clear timeout cũ nếu có
+            // Hủy bỏ lần chờ phân tích trước đó nếu người dùng vẫn đang gõ
             if (analysisTimeout) {
                 clearTimeout(analysisTimeout);
             }
-            // Chạy analysis sau 300ms để tránh quá nhiều lần chạy
+            // Chờ 300ms sau khi ngừng gõ mới thực hiện phân tích
             analysisTimeout = setTimeout(() => {
                 runAnalysis(e.document);
             }, 300);
         }
     }), 
-    // Khi lưu tài liệu
+    // Khi tài liệu được lưu lại
     vscode.workspace.onDidSaveTextDocument((doc) => {
         if (doc.languageId === "solidity") {
             runAnalysis(doc);
         }
     }), 
-    // Khi đổi tab editor đang active
+    // Khi người dùng chuyển đổi tab trình soạn thảo
     vscode.window.onDidChangeActiveTextEditor(() => analyzeActive()), 
-    // Khi người dùng đổi Settings của extension → phân tích lại
+    // Khi người dùng thay đổi cấu hình trong Settings
     vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration("solidityStaticAnalyzer")) {
             analyzeActive();
         }
     }));
+    // Chạy phân tích lần đầu khi extension khởi động
     analyzeActive();
-    // Lệnh thủ công để chạy lại phân tích (có thể bind phím tắt)
+    // Đăng ký lệnh thủ công để chạy lại phân tích
     const command = vscode.commands.registerCommand("solidityStaticAnalyzer.runAnalysis", () => analyzeActive());
     context.subscriptions.push(command);
 }
+/**
+ * Giải phóng tài nguyên khi extension bị vô hiệu hóa.
+ */
 function deactivate() {
-    // Dọn dẹp khi extension bị unload
     if (analysisTimeout) {
         clearTimeout(analysisTimeout);
     }
     diagnosticCollection?.clear();
     diagnosticCollection?.dispose();
 }
+/**
+ * Hàm điều phối việc phân tích và hiển thị kết quả.
+ * @param document Tài liệu cần phân tích.
+ */
 function runAnalysis(document) {
-    // Đọc cấu hình để điều khiển số lượng lỗi và các rule bật/tắt
+    // Đọc các thiết lập từ cấu hình người dùng
     const config = vscode.workspace.getConfiguration("solidityStaticAnalyzer");
     const maxProblems = config.get("maxProblems", 100);
+    // Tổng hợp trạng thái bật/tắt của các quy tắc kiểm tra
     const rules = {
+        // Quy tắc bảo mật
         txOrigin: config.get("rules.txOrigin", true),
         selfdestruct: config.get("rules.selfdestruct", true),
         delegatecall: config.get("rules.delegatecall", true),
         lowLevelCallValue: config.get("rules.lowLevelCallValue", true),
-        // Syntax rules
+        // Quy tắc cú pháp
         missingSemicolon: config.get("rules.missingSemicolon", true),
         missingParentheses: config.get("rules.missingParentheses", true),
         missingBraces: config.get("rules.missingBraces", true),
@@ -136,10 +155,11 @@ function runAnalysis(document) {
         missingDataType: config.get("rules.missingDataType", true),
         legacyFallbackFunction: config.get("rules.legacyFallbackFunction", true),
         missingPayable: config.get("rules.missingPayable", true),
+        // Quy tắc đặt tên
         functionNaming: config.get("rules.functionNaming", true),
         variableNaming: config.get("rules.variableNaming", true),
         contractNaming: config.get("rules.contractNaming", true),
-        // Semantic rules
+        // Quy tắc ngữ nghĩa
         missingVisibility: config.get("rules.missingVisibility", true),
         unsafeAddressCast: config.get("rules.unsafeAddressCast", true),
         deprecatedThisBalance: config.get("rules.deprecatedThisBalance", true),
@@ -149,34 +169,38 @@ function runAnalysis(document) {
         uncheckedLowLevelCall: config.get("rules.uncheckedLowLevelCall", true),
         tryReturnShadowing: config.get("rules.tryReturnShadowing", true),
         unusedTryReturnVariable: config.get("rules.unusedTryReturnVariable", true),
-        // Pragma rules
+        // Quy tắc Pragma và License
         missingLicense: config.get("rules.missingLicense", true),
         missingVersion: config.get("rules.missingVersion", true),
     };
-    // Gọi bộ phân tích cốt lõi với nội dung tài liệu
+    // Lấy nội dung văn bản của tài liệu
     const text = document.getText();
+    // Cấu hình các mẫu regex cho việc đặt tên (Naming)
     const naming = {
         functionPattern: config.get("naming.functionPattern", "^[A-Za-z_][A-Za-z0-9_]*$"),
         variablePattern: config.get("naming.variablePattern", "^[A-Za-z_][A-Za-z0-9_]*$"),
         constantPattern: config.get("naming.constantPattern", "^[A-Za-z_][A-Za-z0-9_]*$"),
         contractPattern: config.get("naming.contractPattern", "^[A-Za-z_][A-Za-z0-9_]*$"),
     };
+    // Các tùy chọn nâng cao cho bộ phân tích
     const useAST = config.get("useASTAnalyzer", true);
     const payableNameHeuristic = config.get("payableNameHeuristic", true);
     const payableNamePattern = config.get("payableNamePattern", "deposit|buy|mint|stake|fund|contribute|donate|tip|payIn|addLiquidity");
+    // Gọi hàm phân tích cốt lõi
     const findings = (0, solidityAnalyzer_1.analyzeText)(text, rules, maxProblems, naming, useAST, {
         enabled: payableNameHeuristic,
         pattern: payableNamePattern,
     }, document.uri.fsPath);
-    // Chuyển các kết quả (findings) thành Diagnostic để VS Code hiển thị
+    // Chuyển đổi các phát hiện (findings) thành Diagnostics để VS Code hiển thị
     const diagnostics = findings.map((f) => {
         const range = new vscode.Range(new vscode.Position(f.range.start.line, f.range.start.character), new vscode.Position(f.range.end.line, f.range.end.character));
         const diag = new vscode.Diagnostic(range, f.message, f.severity);
-        diag.source = "SOLIDIFY\u00A0"; // Non-breaking space to force UI gap before (code)
+        // Nguồn của lỗi hiển thị trong Problems panel
+        diag.source = "SOLIDIFY\u00A0"; // Sử dụng dấu cách không ngắt để tạo khoảng cách thẩm mỹ
         diag.code = f.code;
         return diag;
     });
-    // Gắn diagnostics cho tài liệu hiện tại
+    // Cập nhật kết quả lên DiagnosticCollection của VS Code
     diagnosticCollection?.set(document.uri, diagnostics);
 }
 //# sourceMappingURL=extension.js.map

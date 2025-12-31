@@ -15,8 +15,8 @@ type PushFinding = (
 ) => void;
 
 /**
- * AST-based payable detection and name-heuristic suggestion.
- * Mirrors logic previously embedded in the analyzer.
+ * Phát hiện từ khóa payable dựa trên AST và gợi ý theo heuristic tên hàm.
+ * Kế thừa logic từ bộ phân tích chính.
  */
 export function runPayableAstAndHeuristic(
   content: string,
@@ -92,12 +92,12 @@ export function runPayableAstAndHeuristic(
             const col = before[before.length - 1].length;
             const severity = vscode.DiagnosticSeverity.Error;
             const message = isReceive
-              ? "'receive' function must be marked payable to accept ETH."
+              ? "Hàm 'receive' phải được đánh dấu 'payable' để nhận ETH."
               : isFallback
-              ? "'fallback' function receiving Ether must be payable."
+              ? "Hàm 'fallback' nhận Ether phải được đánh dấu 'payable'."
               : isConstructor && usesMsgValue
-              ? "Constructor receiving Ether must be payable."
-              : "Function receiving Ether (reads msg.value) must be payable.";
+              ? "Constructor nhận Ether phải được đánh dấu 'payable'."
+              : "Hàm nhận Ether (có sử dụng msg.value) phải được đánh dấu 'payable'.";
             pushFinding(
               line,
               col,
@@ -150,7 +150,7 @@ export function runPayableAstAndHeuristic(
                     line,
                     col,
                     col + fname.length,
-                    "Function name suggests it should accept Ether; consider adding 'payable'.",
+                    "Tên hàm gợi ý rằng nó nên nhận Ether; hãy cân nhắc thêm từ khóa 'payable'.",
                     "MISSING_PAYABLE",
                     vscode.DiagnosticSeverity.Warning
                   );
@@ -191,7 +191,7 @@ export function runPayableLineFallbackSingle(
         lineIndex,
         idx,
         idx + "receive".length,
-        "'receive' function must be marked payable to accept ETH.",
+        "Hàm 'receive' phải được đánh dấu 'payable' để nhận ETH.",
         "MISSING_PAYABLE",
         vscode.DiagnosticSeverity.Error
       );
@@ -211,7 +211,7 @@ export function runPayableLineFallbackSingle(
           lineIndex,
           idx,
           idx + match[0].length,
-          "Function that handles ETH should have 'payable' modifier.",
+          "Hàm xử lý ETH nên có modifier 'payable'.",
           "MISSING_PAYABLE",
           vscode.DiagnosticSeverity.Warning
         );

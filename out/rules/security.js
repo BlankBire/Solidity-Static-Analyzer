@@ -36,14 +36,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.runSecurityRulesSingleLine = runSecurityRulesSingleLine;
 const vscode = __importStar(require("vscode"));
 /**
- * Apply security-related rules for a single source line.
+ * Áp dụng các quy tắc bảo mật cho một dòng mã nguồn.
  */
 function runSecurityRulesSingleLine(line, lineLower, lineIndex, rules, pushFinding) {
     // 1. TX_ORIGIN
     if (rules.txOrigin) {
         const idx = lineLower.indexOf("tx.origin");
         if (idx !== -1) {
-            pushFinding(lineIndex, idx, idx + "tx.origin".length, "Avoid using tx.origin for authorization. Use msg.sender instead.", "TX_ORIGIN", vscode.DiagnosticSeverity.Warning);
+            pushFinding(lineIndex, idx, idx + "tx.origin".length, "Tránh sử dụng tx.origin để xác thực. Hãy sử dụng msg.sender thay thế.", "TX_ORIGIN", vscode.DiagnosticSeverity.Warning);
         }
     }
     // 2. SELFDESTRUCT / suicide
@@ -51,7 +51,7 @@ function runSecurityRulesSingleLine(line, lineLower, lineIndex, rules, pushFindi
         const m = line.match(/(selfdestruct|suicide)\s*\(/i);
         if (m && m.index !== undefined) {
             const idx = m.index;
-            pushFinding(lineIndex, idx, idx + m[1].length, "selfdestruct can permanently remove contract code. Ensure this is intended and access controlled.", "SELFDESTRUCT", vscode.DiagnosticSeverity.Warning);
+            pushFinding(lineIndex, idx, idx + m[1].length, "selfdestruct có thể xóa vĩnh viễn mã nguồn hợp đồng. Hãy đảm bảo đây là hành động có chủ đích và có biện pháp kiểm soát quyền truy cập.", "SELFDESTRUCT", vscode.DiagnosticSeverity.Warning);
         }
     }
     // 3. DELEGATECALL
@@ -59,7 +59,7 @@ function runSecurityRulesSingleLine(line, lineLower, lineIndex, rules, pushFindi
         const m = line.match(/\.delegatecall\s*\(/i);
         if (m && m.index !== undefined) {
             const idx = m.index + 1; // skip '.'
-            pushFinding(lineIndex, idx, idx + "delegatecall".length, "delegatecall can lead to unexpected context changes. Validate target and data.", "DELEGATECALL", vscode.DiagnosticSeverity.Warning);
+            pushFinding(lineIndex, idx, idx + "delegatecall".length, "delegatecall có thể dẫn đến các thay đổi ngữ cảnh không mong muốn. Hãy kiểm tra kỹ mục tiêu và dữ liệu truyền vào.", "DELEGATECALL", vscode.DiagnosticSeverity.Warning);
         }
     }
     // 4. LOW_LEVEL_CALL with value
@@ -71,7 +71,7 @@ function runSecurityRulesSingleLine(line, lineLower, lineIndex, rules, pushFindi
             const token = m[0].toLowerCase().includes("call.value")
                 ? "call.value"
                 : "call{value:";
-            pushFinding(lineIndex, idx, idx + token.length, "Low-level call with value can introduce reentrancy. Use Checks-Effects-Interactions and consider .transfer/.send limitations.", "LOW_LEVEL_CALL_VALUE", vscode.DiagnosticSeverity.Warning);
+            pushFinding(lineIndex, idx, idx + token.length, "Lời gọi hàm cấp thấp kèm value có thể dẫn đến lỗi reentrancy. Hãy sử dụng mô hình Checks-Effects-Interactions và cân nhắc các hạn chế của .transfer/.send.", "LOW_LEVEL_CALL_VALUE", vscode.DiagnosticSeverity.Warning);
         }
     }
 }

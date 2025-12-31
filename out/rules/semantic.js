@@ -273,7 +273,7 @@ function runSemanticRulesAst(content, tree, toggles, pushFinding) {
                         continue;
                     if (fnName === contractName) {
                         const startPos = fnNameNode.startPosition || member.startPosition;
-                        pushFinding(startPos.row, startPos.column, fnNameNode.endPosition?.column ?? startPos.column + fnName.length, "Replace legacy constructor syntax with the 'constructor' keyword in Solidity 0.5+.", "LEGACY_CONSTRUCTOR", severity);
+                        pushFinding(startPos.row, startPos.column, fnNameNode.endPosition?.column ?? startPos.column + fnName.length, "Hãy thay thế cú pháp constructor cũ bằng từ khóa 'constructor' từ Solidity 0.5+.", "LEGACY_CONSTRUCTOR", severity);
                     }
                 }
             }
@@ -291,7 +291,7 @@ function runSemanticRulesAst(content, tree, toggles, pushFinding) {
                     ? vscode.DiagnosticSeverity.Error
                     : vscode.DiagnosticSeverity.Warning;
                 const endColumn = startPos.column + "function".length;
-                pushFinding(startPos.row, startPos.column, endColumn, "Anonymous fallback syntax is deprecated. Use 'fallback() external' or 'receive() external payable' instead of 'function()'.", "LEGACY_FALLBACK_FUNCTION", severity);
+                pushFinding(startPos.row, startPos.column, endColumn, "Cú pháp fallback ẩn danh đã lỗi thời. Hãy sử dụng 'fallback() external' hoặc 'receive() external payable' thay vì 'function()'.", "LEGACY_FALLBACK_FUNCTION", severity);
             }
         }
         let callMemberObject;
@@ -322,7 +322,7 @@ function runSemanticRulesAst(content, tree, toggles, pushFinding) {
                     row: startPos.row,
                     column: startPos.column + "function".length,
                 };
-                pushFinding(startPos.row, startPos.column, endPos.column, "No visibility specified. Did you intend to add 'public'?", "MISSING_VISIBILITY", vscode.DiagnosticSeverity.Error);
+                pushFinding(startPos.row, startPos.column, endPos.column, "Chưa xác định visibility. Bạn có định thêm 'public' không?", "MISSING_VISIBILITY", vscode.DiagnosticSeverity.Error);
             }
         }
         if (toggles.unsafeAddressCast && node.type === "type_cast_expression") {
@@ -348,7 +348,7 @@ function runSemanticRulesAst(content, tree, toggles, pushFinding) {
                                     objectText === "msg" &&
                                     propertyText === "sender") {
                                     const startPos = primitive.startPosition;
-                                    pushFinding(startPos.row, startPos.column, primitive.endPosition.column, `Explicit type conversion from 'address' to '${typeText.trim()}' is disallowed.`, "UNSAFE_ADDRESS_CAST", vscode.DiagnosticSeverity.Error);
+                                    pushFinding(startPos.row, startPos.column, primitive.endPosition.column, `Chuyển đổi kiểu dữ liệu tường minh từ 'address' sang '${typeText.trim()}' không được phép.`, "UNSAFE_ADDRESS_CAST", vscode.DiagnosticSeverity.Error);
                                 }
                             }
                         }
@@ -371,7 +371,7 @@ function runSemanticRulesAst(content, tree, toggles, pushFinding) {
                     propertyText === "balance") {
                     const startPos = objectNode.startPosition || node.startPosition;
                     const endPos = propertyNode.endPosition || node.endPosition;
-                    pushFinding(startPos.row, startPos.column, endPos.column, "'this.balance' is deprecated. Use address(this).balance instead.", "DEPRECATED_THIS_BALANCE", vscode.DiagnosticSeverity.Error);
+                    pushFinding(startPos.row, startPos.column, endPos.column, "'this.balance' đã lỗi thời. Hãy sử dụng address(this).balance thay thế.", "DEPRECATED_THIS_BALANCE", vscode.DiagnosticSeverity.Error);
                 }
             }
         }
@@ -389,7 +389,7 @@ function runSemanticRulesAst(content, tree, toggles, pushFinding) {
                     getNodeText(content, baseProperty).trim() === "sender") {
                     const startPos = baseObject.startPosition || node.startPosition;
                     const endPos = callMemberProperty.endPosition || node.endPosition;
-                    pushFinding(startPos.row, startPos.column, endPos.column, "Cast msg.sender to payable(msg.sender) before calling transfer/send.", "MSG_SENDER_TRANSFER", vscode.DiagnosticSeverity.Error);
+                    pushFinding(startPos.row, startPos.column, endPos.column, "Hãy ép kiểu msg.sender thành payable(msg.sender) trước khi gọi transfer/send.", "MSG_SENDER_TRANSFER", vscode.DiagnosticSeverity.Error);
                 }
             }
         }
@@ -399,7 +399,7 @@ function runSemanticRulesAst(content, tree, toggles, pushFinding) {
                 if (toggles.lowLevelCallNoData && callArguments.length === 0) {
                     const startPos = callMemberProperty.startPosition || node.startPosition;
                     const endPos = callMemberProperty.endPosition || node.endPosition;
-                    pushFinding(startPos.row, startPos.column, endPos.column, 'Low-level call requires a calldata argument. Pass a bytes payload (use "" for empty calldata).', "LOW_LEVEL_CALL_NO_DATA", vscode.DiagnosticSeverity.Error);
+                    pushFinding(startPos.row, startPos.column, endPos.column, 'Lời gọi hàm cấp thấp yêu cầu đối số calldata. Hãy truyền vào bytes payload (sử dụng "" nếu calldata trống).', "LOW_LEVEL_CALL_NO_DATA", vscode.DiagnosticSeverity.Error);
                 }
                 if (toggles.uncheckedLowLevelCall) {
                     const { container } = unwrapExpressionParents(node);
@@ -429,7 +429,7 @@ function runSemanticRulesAst(content, tree, toggles, pushFinding) {
                     if (!inAssignment && container?.type === "expression_statement") {
                         const startPos = callMemberProperty.startPosition || node.startPosition;
                         const endPos = callMemberProperty.endPosition || node.endPosition;
-                        pushFinding(startPos.row, startPos.column, endPos.column, "Low-level call result ignored. Capture the boolean success flag and handle failures explicitly.", "UNCHECKED_LOW_LEVEL_CALL", vscode.DiagnosticSeverity.Error);
+                        pushFinding(startPos.row, startPos.column, endPos.column, "Kết quả của lời gọi hàm cấp thấp bị bỏ qua. Hãy thu thập cờ boolean thành công và xử lý lỗi cụ thể.", "UNCHECKED_LOW_LEVEL_CALL", vscode.DiagnosticSeverity.Error);
                     }
                     else if (parentCall && container?.type === "call_argument") {
                         const parentCalleeRaw = (parentCall.namedChildren || [])[0];
@@ -446,7 +446,7 @@ function runSemanticRulesAst(content, tree, toggles, pushFinding) {
                         if (REQUIRE_FUNCTIONS.has(parentName.toLowerCase())) {
                             const startPos = callMemberProperty.startPosition || node.startPosition;
                             const endPos = callMemberProperty.endPosition || node.endPosition;
-                            pushFinding(startPos.row, startPos.column, endPos.column, "Low-level call returns (bool success, bytes data); destructure the tuple before passing into require/assert.", "LOW_LEVEL_CALL_TUPLE", vscode.DiagnosticSeverity.Error);
+                            pushFinding(startPos.row, startPos.column, endPos.column, "Lời gọi hàm cấp thấp trả về (bool success, bytes data); hãy phân tách tuple trước khi truyền vào require/assert.", "LOW_LEVEL_CALL_TUPLE", vscode.DiagnosticSeverity.Error);
                             const requireRangeNode = (() => {
                                 if (!parentCallee)
                                     return parentCall;
@@ -459,7 +459,7 @@ function runSemanticRulesAst(content, tree, toggles, pushFinding) {
                             const requireStart = requireRangeNode?.startPosition || parentCall.startPosition;
                             const requireEnd = requireRangeNode?.endPosition || parentCall.endPosition;
                             if (requireStart && requireEnd) {
-                                pushFinding(requireStart.row, requireStart.column, requireEnd.column, "require/assert expects a boolean success flag; destructure the low-level call tuple before passing it in.", "REQUIRE_LOW_LEVEL_CALL_TUPLE", vscode.DiagnosticSeverity.Error);
+                                pushFinding(requireStart.row, requireStart.column, requireEnd.column, "require/assert mong đợi một cờ boolean thành công; hãy phân tách tuple của lời gọi hàm cấp thấp trước khi truyền vào.", "REQUIRE_LOW_LEVEL_CALL_TUPLE", vscode.DiagnosticSeverity.Error);
                             }
                         }
                     }
@@ -495,7 +495,7 @@ function runSemanticRulesAst(content, tree, toggles, pushFinding) {
                             shadowTarget = "state variable";
                         }
                         if (shadowTarget) {
-                            pushFinding(idNode.startPosition.row, idNode.startPosition.column, idNode.endPosition.column, `Try returns binding '${name}' shadows a ${shadowTarget} with the same name. Rename the try returns variable to avoid confusion.`, "TRY_RETURN_SHADOWING", vscode.DiagnosticSeverity.Warning);
+                            pushFinding(idNode.startPosition.row, idNode.startPosition.column, idNode.endPosition.column, `Biến binding '${name}' trong try returns bị trùng tên với một ${shadowTarget}. Hãy đổi tên biến try returns để tránh gây nhầm lẫn.`, "TRY_RETURN_SHADOWING", vscode.DiagnosticSeverity.Warning);
                         }
                     }
                     if (toggles.unusedTryReturnVariable) {
@@ -506,7 +506,7 @@ function runSemanticRulesAst(content, tree, toggles, pushFinding) {
                             ? identifierUsedInNode(successBlock, name)
                             : false;
                         if (!isUsed) {
-                            pushFinding(idNode.startPosition.row, idNode.startPosition.column, idNode.endPosition.column, `Try returns binding '${name}' is never read inside the success block. Remove it or use the value inside the try block.`, "UNUSED_TRY_RETURN", vscode.DiagnosticSeverity.Warning);
+                            pushFinding(idNode.startPosition.row, idNode.startPosition.column, idNode.endPosition.column, `Biến binding '${name}' trong try returns chưa bao giờ được đọc trong thành công block. Hãy xóa nó hoặc sử dụng giá trị này bên trong try block.`, "UNUSED_TRY_RETURN", vscode.DiagnosticSeverity.Warning);
                         }
                     }
                 }

@@ -1,10 +1,10 @@
 import * as vscode from "vscode";
 
 export interface NamingConfig {
-  functionPattern: string; // regex source
-  variablePattern: string; // regex source
-  constantPattern: string; // regex source
-  contractPattern: string; // regex source
+  functionPattern: string; // mã nguồn regex
+  variablePattern: string; // mã nguồn regex
+  constantPattern: string; // mã nguồn regex
+  contractPattern: string; // mã nguồn regex
 }
 
 export interface NamingRuleToggles {
@@ -98,7 +98,7 @@ export function runNamingRulesSingleLine(
             lineIndex,
             firstAbs,
             firstAbs + 1,
-            "Invalid function identifier.",
+            "Tên hàm không hợp lệ.",
             "FUNCTION_NAMING",
             vscode.DiagnosticSeverity.Error
           );
@@ -113,7 +113,7 @@ export function runNamingRulesSingleLine(
               lineIndex,
               nameStart,
               nameEnd,
-              "Invalid function identifier.",
+              "Tên hàm không hợp lệ.",
               "FUNCTION_NAMING",
               vscode.DiagnosticSeverity.Error
             );
@@ -124,7 +124,7 @@ export function runNamingRulesSingleLine(
                 lineIndex,
                 nameStart,
                 nameEnd,
-                `Invalid function identifier '${name}'.`,
+                `Tên hàm '${name}' không đúng quy tắc.`,
                 "FUNCTION_NAMING",
                 vscode.DiagnosticSeverity.Error
               );
@@ -143,11 +143,11 @@ export function runNamingRulesSingleLine(
     const firstToken = firstTokenMatch ? firstTokenMatch[0] : "";
     const startsWithType = isTypeToken(firstToken);
     const isFunctionLine = /^\s*function\b/i.test(decl);
-    // Use AST-derived paramLineSet (if available) to detect parameter-list context
+    // Sử dụng paramLineSet từ AST (nếu có) để xác định ngữ cảnh danh sách tham số
     let isInsideFunctionParams = !!(
       paramLineSet && paramLineSet.has(lineIndex)
     );
-    // Fallback to text heuristic when AST info not present
+    // Fallback sang heuristic văn bản khi không có thông tin AST
     if (!isInsideFunctionParams) {
       try {
         if (lines && lineIndex >= 0) {
@@ -229,7 +229,7 @@ export function runNamingRulesSingleLine(
             lineIndex,
             identifierStart,
             identifierStart + identifier.length,
-            "Invalid variable identifier.",
+            "Tên biến không hợp lệ.",
             "VARIABLE_NAMING",
             vscode.DiagnosticSeverity.Error
           );
@@ -244,7 +244,7 @@ export function runNamingRulesSingleLine(
               lineIndex,
               identifierStart,
               identifierEnd,
-              `Invalid variable identifier '${identifier}'.`,
+              `Tên biến '${identifier}' không đúng quy tắc.`,
               "VARIABLE_NAMING",
               vscode.DiagnosticSeverity.Error
             );
@@ -269,7 +269,7 @@ export function runNamingRulesSingleLine(
           lineIndex,
           reportCol,
           reportCol + 1,
-          "Invalid contract/interface/library identifier.",
+          "Tên contract/interface/library không hợp lệ.",
           "CONTRACT_NAMING",
           vscode.DiagnosticSeverity.Error
         );
@@ -283,7 +283,7 @@ export function runNamingRulesSingleLine(
             lineIndex,
             nameStart,
             nameStart + 1,
-            "Invalid contract/interface/library identifier.",
+            "Tên contract/interface/library không hợp lệ.",
             "CONTRACT_NAMING",
             vscode.DiagnosticSeverity.Error
           );
@@ -294,7 +294,7 @@ export function runNamingRulesSingleLine(
               lineIndex,
               nameStart,
               nameEnd,
-              "Invalid contract/interface/library identifier.",
+              "Tên contract/interface/library không hợp lệ.",
               "CONTRACT_NAMING",
               vscode.DiagnosticSeverity.Error
             );
@@ -305,7 +305,7 @@ export function runNamingRulesSingleLine(
                 lineIndex,
                 nameStart,
                 nameEnd,
-                `Invalid contract/interface/library identifier '${name}'.`,
+                `Tên '${name}' không đúng quy tắc.`,
                 "CONTRACT_NAMING",
                 vscode.DiagnosticSeverity.Error
               );

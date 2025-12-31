@@ -6,8 +6,8 @@ export interface PragmaRuleConfig {
 }
 
 /**
- * Run pragma-related rules: SPDX license header and pragma solidity version.
- * This operates on the original content (comments preserved).
+ * Chạy các quy tắc liên quan đến pragma: SPDX license và phiên bản solidity.
+ * Hoạt động trên nội dung gốc (giữ nguyên comment).
  */
 export function runPragmaRules(
   content: string,
@@ -21,7 +21,7 @@ export function runPragmaRules(
     severity: vscode.DiagnosticSeverity
   ) => void
 ): void {
-  // SPDX license: check first ~10 lines for comment markers containing SPDX-License-Identifier
+  // SPDX license: kiểm tra ~10 dòng đầu tiên xem có comment chứa SPDX-License-Identifier không
   if (rules.missingLicense) {
     const originalLines = content.split(/\r?\n/);
     let hasLicense = false;
@@ -40,14 +40,14 @@ export function runPragmaRules(
         0,
         0,
         1,
-        "Missing SPDX-License-Identifier. Add a license identifier at the top of the file (e.g., // SPDX-License-Identifier: MIT).",
+        "Thiếu SPDX-License-Identifier. Hãy thêm định danh giấy phép ở đầu tệp (ví dụ: // SPDX-License-Identifier: MIT).",
         "MISSING_LICENSE",
         vscode.DiagnosticSeverity.Warning
       );
     }
   }
 
-  // pragma solidity version: scan first ~20 non-comment lines for `pragma solidity`
+  // pragma solidity version: quét ~20 dòng không phải comment đầu tiên để tìm `pragma solidity`
   if (rules.missingVersion) {
     const originalLines = content.split(/\r?\n/);
     let hasVersion = false;
@@ -64,7 +64,7 @@ export function runPragmaRules(
         0,
         0,
         1,
-        "Missing pragma solidity version. Add a version declaration at the top of the file (e.g., pragma solidity ^0.8.0;).",
+        "Thiếu pragma solidity version. Hãy thêm khai báo phiên bản ở đầu tệp (ví dụ: pragma solidity ^0.8.0;).",
         "MISSING_VERSION",
         vscode.DiagnosticSeverity.Warning
       );

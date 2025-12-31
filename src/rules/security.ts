@@ -17,7 +17,7 @@ type PushFinding = (
 ) => void;
 
 /**
- * Apply security-related rules for a single source line.
+ * Áp dụng các quy tắc bảo mật cho một dòng mã nguồn.
  */
 export function runSecurityRulesSingleLine(
   line: string,
@@ -34,7 +34,7 @@ export function runSecurityRulesSingleLine(
         lineIndex,
         idx,
         idx + "tx.origin".length,
-        "Avoid using tx.origin for authorization. Use msg.sender instead.",
+        "Tránh sử dụng tx.origin để xác thực. Hãy sử dụng msg.sender thay thế.",
         "TX_ORIGIN",
         vscode.DiagnosticSeverity.Warning
       );
@@ -50,7 +50,7 @@ export function runSecurityRulesSingleLine(
         lineIndex,
         idx,
         idx + m[1].length,
-        "selfdestruct can permanently remove contract code. Ensure this is intended and access controlled.",
+        "selfdestruct có thể xóa vĩnh viễn mã nguồn hợp đồng. Hãy đảm bảo đây là hành động có chủ đích và có biện pháp kiểm soát quyền truy cập.",
         "SELFDESTRUCT",
         vscode.DiagnosticSeverity.Warning
       );
@@ -66,7 +66,7 @@ export function runSecurityRulesSingleLine(
         lineIndex,
         idx,
         idx + "delegatecall".length,
-        "delegatecall can lead to unexpected context changes. Validate target and data.",
+        "delegatecall có thể dẫn đến các thay đổi ngữ cảnh không mong muốn. Hãy kiểm tra kỹ mục tiêu và dữ liệu truyền vào.",
         "DELEGATECALL",
         vscode.DiagnosticSeverity.Warning
       );
@@ -87,7 +87,7 @@ export function runSecurityRulesSingleLine(
         lineIndex,
         idx,
         idx + token.length,
-        "Low-level call with value can introduce reentrancy. Use Checks-Effects-Interactions and consider .transfer/.send limitations.",
+        "Lời gọi hàm cấp thấp kèm value có thể dẫn đến lỗi reentrancy. Hãy sử dụng mô hình Checks-Effects-Interactions và cân nhắc các hạn chế của .transfer/.send.",
         "LOW_LEVEL_CALL_VALUE",
         vscode.DiagnosticSeverity.Warning
       );

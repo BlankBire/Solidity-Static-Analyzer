@@ -2,46 +2,52 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.analyzeText = analyzeText;
 // =============================================================================
-// HÀM PHÂN TÍCH CHÍNH
+// HÀM PHÂN TÍCH CHÍNH (MAIN ANALYZER)
 // =============================================================================
 /**
- * Hàm chính phân tích mã Solidity
- * @param content Nội dung file Solidity
- * @param rules Cấu hình các rules cần kiểm tra
- * @param maxProblems Giới hạn số lượng lỗi tối đa
- * @returns Danh sách các findings (lỗi/cảnh báo)
+ * Hàm phân tích mã nguồn Solidity chính.
+ *
+ * @param content Nội dung mã nguồn cần quét.
+ * @param rules Các quy tắc sẽ được áp dụng.
+ * @param maxProblems Giới hạn số lượng phát hiện tối đa để đảm bảo hiệu năng.
+ * @param naming Cấu hình regex cho việc đặt tên.
+ * @param useAST Có sử dụng bộ phân tích AST (tree-sitter) hay không.
+ * @param payableHeuristic Cấu hình heuristics cho việc gợi ý payable.
+ * @param filePath Đường dẫn file (nếu có) để phân tích liên file (cross-file).
+ * @returns Danh sách các findings đã tìm thấy.
  */
 function analyzeText(content, rules, maxProblems, naming, useAST, payableHeuristic, filePath) {
     const findings = [];
-    // Reported keys to deduplicate diagnostics
-    // (moved declarations earlier to enable AST traversal to populate them)
-    // Nếu user bật useASTAnalyzer, sẽ dùng tree-sitter để tìm chính xác comment
-    // và loại bỏ chúng trước khi phân tích theo dòng. Nếu không có AST hoặc lỗi,
-    // fallback về nội dung gốc và dùng stripping regex sau.
+    // Reported keys dùng để loại bỏ các kết quả trùng lặp tại cùng một vị trí.
+    // Nếu người dùng bật useASTAnalyzer, chúng ta sẽ sử dụng tree-sitter để phân tách chính xác
+    // comment và chuỗi ký tự, giúp giảm thiểu sai số (false positives) khi quét theo dòng.
+    // Nếu không có AST hoặc gặp lỗi, sẽ fallback về quét text đơn thuần.
     let contentNoComments = content;
-    // Parser/tree được khởi tạo nếu useAST được bật và tree-sitter tồn tại
+    // Bộ parse và cây cú pháp (Parser/Tree) được dùng bởi tree-sitter
     let parser = undefined;
     let tree = undefined;
-    // commentRanges and ignoredRanges will be filled if AST parsing succeeds
+    // Các vùng cần chú ý trong AST (comment, chuỗi, vùng bị bỏ qua)
     let commentRanges = [];
     let stringLiteralRanges = [];
     let ignoredRanges = [];
-    // set of line numbers that are inside any AST parameter_list node
+    // Tập hợp các dòng nằm trong danh sách tham số hàm (parameter list)
     let parameterLineSet = new Set();
-    // Theo dõi các identifier bị thiếu kiểu để cảnh báo khi được sử dụng ở các dòng sau
+    // Theo dõi các identifier (biến, hàm) bị thiếu kiểu dữ liệu
     const missingTypeIdentifiers = new Set();
-    // Theo dõi các identifier đã được khai báo (có type)
+    // Danh sách các identifier đã được khai báo đầy đủ
     const declaredIdentifiers = new Set();
-    // store declaration positions for better diagnostics
+    // Lưu trữ vị trí khai báo của identifier để báo cáo lỗi tốt hơn
     const declaredIdentifierPositions = new Map();
-    // identifiers used (populated when AST available)
+    // Danh sách identifier được sử dụng thực tế (được điền khi có AST)
     const usedIdentifiers = new Set();
-    // detailed declared declarations with scope info
+    // Thông tin chi tiết về các khai báo (bao gồm scope/phạm vi)
     const declaredDeclarations = [];
-    // cross-file diagnostics collected before main pushFinding exists
+    // Các kết quả phân tích liên file được thu thập tạm thời
     const preCrossFindings = [];
+    // BƯỚC 1: PHÂN TÍCH AST (Nếu được bật)
     if (useAST) {
         try {
+            // Nạp bộ Parser tree-sitter cho Solidity
             // eslint-disable-next-line @typescript-eslint/no-var-requires
             const Parser = require("tree-sitter");
             // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -49,7 +55,7 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
             parser = new Parser();
             parser.setLanguage(SolidityLang);
             tree = parser.parse(content);
-            // Collect comment and string literal node ranges
+            // Thu thập các vùng chứa comment và string literals để loại trừ khi quét text
             commentRanges = [];
             stringLiteralRanges = [];
             const collectTrivia = (node) => {
@@ -70,7 +76,7 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
             };
             if (tree && tree.rootNode)
                 collectTrivia(tree.rootNode);
-            // Collect ranges to ignore for parentheses checks (e.g., return/emit statements)
+            // Xác định các phạm vi cần bỏ qua đối với kiểm tra dấu ngoặc (ngoại trừ return/emit)
             const ignoreNodeTypes = new Set(["return_statement", "emit_statement"]);
             ignoredRanges = [];
             const collectIgnored = (node) => {
@@ -85,18 +91,17 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
             };
             if (tree && tree.rootNode)
                 collectIgnored(tree.rootNode);
-            // Do not remove comment ranges from the content here.
-            // We keep `contentNoComments` equal to original `content` so line
-            // numbers produced by the AST (tree-sitter) match the per-line
-            // indices used below. Comment ranges are still available in
-            // `commentRanges` for rules that need them.
+            // Lưu ý: Không xóa các comment khỏi content tại đây.
+            // Chúng ta giữ `contentNoComments` giống hệt `content` gốc để các chỉ số dòng
+            // từ AST khớp với các chỉ số dòng khi quét từng hàng bên dưới.
             contentNoComments = content;
-            // Collect declared identifiers from AST: state vars, parameters, and local var declarations
+            // Thu thập các identifier đã khai báo từ AST: state vars, tham số, biến cục bộ
             try {
                 const collectDeclared = (node) => {
                     if (!node)
                         return;
                     const t = String(node.type).toLowerCase();
+                    // Khai báo Contract, Interface, Library
                     if (t === "contract_declaration" ||
                         t === "contract_definition" ||
                         t === "interface_definition" ||
@@ -116,7 +121,7 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
                             }
                         }
                     }
-                    // state variable declarations (tree-sitter-solidity: state_variable_declaration)
+                    // Khai báo biến trạng thái (state variable) và biến cục bộ
                     if (t === "state_variable_declaration" ||
                         t === "variable_declaration") {
                         const kids = node.namedChildren || node.children || [];
@@ -126,7 +131,7 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
                                     String(c.type).toLowerCase() === "identifier") {
                                     const name = content.slice(c.startIndex, c.endIndex);
                                     declaredIdentifiers.add(name);
-                                    // determine scope node: nearest enclosing function/contract/block
+                                    // Xác định node chứa phạm vi (scope): function/contract/block gần nhất
                                     const scopeTypes = new Set([
                                         "function_definition",
                                         "function_declaration",
@@ -166,7 +171,6 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
                                         if (cc.type === "identifier") {
                                             const name = content.slice(cc.startIndex, cc.endIndex);
                                             declaredIdentifiers.add(name);
-                                            // find scope node
                                             const scopeTypes2 = new Set([
                                                 "function_definition",
                                                 "function_declaration",
@@ -205,18 +209,18 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
                                 }
                             }
                             catch (_) {
-                                // noop
+                                // Bỏ qua lỗi nhỏ khi trích xuất identifier
                             }
                         }
                     }
-                    // function parameters
+                    // Tham số hàm (Function parameters)
                     if (t === "parameter_list" || t === "parameter") {
                         const kids = node.namedChildren || node.children || [];
                         for (const c of kids) {
                             if (c.type === "identifier") {
                                 const name = content.slice(c.startIndex, c.endIndex);
                                 declaredIdentifiers.add(name);
-                                // parameter scope -> enclosing function
+                                // Phạm vi của tham số là hàm bao quanh
                                 let scopeNodeP = tree.rootNode;
                                 try {
                                     let curP = c.parent;
@@ -245,7 +249,7 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
                             }
                         }
                     }
-                    // local variable declarations may appear as variable_declaration_statement
+                    // Các khai báo biến cục bộ khác (có thể là statement)
                     if (t === "variable_declaration_list" ||
                         t === "variable_declaration_statement") {
                         const kids = node.namedChildren || node.children || [];
@@ -258,7 +262,6 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
                                     endIndex: c.endIndex,
                                     startPosition: c.startPosition,
                                 });
-                                // scope -> nearest enclosing function/block
                                 let scopeNodeV = tree.rootNode;
                                 try {
                                     let curV = c.parent;
@@ -292,7 +295,7 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
                 };
                 if (tree && tree.rootNode)
                     collectDeclared(tree.rootNode);
-                // Collect parameter_list line numbers for AST-based param detection
+                // Thu thập các dòng thuốc danh sách tham số (dùng cho detection dựa trên AST)
                 parameterLineSet = new Set();
                 try {
                     const walkParams = (node) => {
@@ -312,41 +315,41 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
                         walkParams(tree.rootNode);
                 }
                 catch (e) {
-                    // ignore
+                    // Bỏ qua
                 }
             }
             catch (e) {
-                // ignore
+                // Bỏ qua
             }
-            // Cross-file checks: resolve imports and collect exported top-level names
+            // Kiểm tra liên file (Cross-file checks): Giải quyết các import và export
             try {
                 // eslint-disable-next-line @typescript-eslint/no-var-requires
                 const { runCrossFileChecks } = require("./rules/cross");
                 runCrossFileChecks(content, filePath, declaredIdentifiers, declaredDeclarations, (line, start, end, msg, code, sev) => preCrossFindings.push({ line, start, end, msg, code, sev }));
             }
             catch (e) {
-                // ignore if cross module not available
+                // Bỏ qua nếu module cross không khả dụng
             }
         }
         catch (err) {
-            // Nếu không có tree-sitter hoặc parse lỗi → fallback về stripping regex
+            // Nếu không có tree-sitter hoặc parse lỗi → fallback về kỹ thuật stripping regex truyền thống
             contentNoComments = content;
             parser = undefined;
             tree = undefined;
         }
     }
-    // Ensure cross-file import checks run even if AST parsing failed.
+    // Đảm bảo việc kiểm tra import liên file vẫn chạy ngay cả khi AST bị lỗi.
     try {
         // eslint-disable-next-line @typescript-eslint/no-var-requires
         const { runCrossFileChecks } = require("./rules/cross");
         runCrossFileChecks(content, filePath, declaredIdentifiers, declaredDeclarations, (line, start, end, msg, code, sev) => preCrossFindings.push({ line, start, end, msg, code, sev }));
     }
     catch (e) {
-        // ignore if cross module not available
+        // Bỏ qua
     }
-    // Split into lines after comments have been removed (from AST or fallback)
+    // Chia nhỏ nội dung thành mảng các dòng sau khi đã xử lý comment
     const lines = contentNoComments.split(/\r?\n/);
-    // Compute line start indices in the original content so we can map line->char index
+    // Tính toán chỉ số bắt đầu của mỗi dòng trong content gốc để ánh xạ vị trí
     const lineStartIndices = [];
     for (let p = 0, ln = 0; p < content.length; p++) {
         if (ln === 0)
@@ -356,20 +359,23 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
             lineStartIndices.push(p + 1);
         }
     }
-    // Ensure at least one entry per line (fallback)
+    // Đảm bảo khớp số lượng dòng
     while (lineStartIndices.length < lines.length) {
         const last = lineStartIndices.length
             ? lineStartIndices[lineStartIndices.length - 1]
             : 0;
         lineStartIndices.push(last);
     }
-    // parameterLineSet is available (empty if AST parsing failed)
     const reportedKeys = new Set();
-    // Hàm helper để thêm finding vào danh sách
+    /**
+     * Hàm trợ giúp để ghi nhận một phát hiện mới vào danh sách.
+     */
     const pushFinding = (lineIndex, start, end, message, code, severity) => {
+        // Dừng thu thập nếu vượt quá giới hạn cấu hình
         if (findings.length >= maxProblems) {
             return;
         }
+        // Tạo khóa xác định duy nhất lỗi tại cùng một vị trí để tránh trùng lặp
         const key = `${lineIndex}:${start}:${end}:${code}`;
         if (reportedKeys.has(key)) {
             return;
@@ -385,21 +391,22 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
             },
         });
     };
-    // Flush any cross-file findings that were collected earlier (before pushFinding existed)
+    // Đẩy các kết quả liên file đã thu thập trước đó vào danh sách chính
     if (preCrossFindings && preCrossFindings.length > 0) {
         for (const pf of preCrossFindings) {
             try {
                 pushFinding(pf.line, pf.start, pf.end, pf.msg, pf.code, pf.sev);
             }
             catch (_err) {
-                // ignore individual flush errors
+                // Bỏ qua lỗi lẻ tẻ khi flush
             }
         }
         preCrossFindings.length = 0;
     }
     // =============================================================================
-    // PRAGMA RULES (modularized) - license & version
+    // CÁC QUY TẮC PHÂN TÍCH THEO MODULE
     // =============================================================================
+    // PHẦN 1: PRAGMA RULES - Kiểm tra license và version
     try {
         const { runPragmaRules } = require("./rules/pragma");
         runPragmaRules(content, {
@@ -408,10 +415,9 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
         }, pushFinding);
     }
     catch (e) {
-        // Nếu module lỗi (chưa tồn tại), bỏ qua để không phá vỡ analyzer
-        // console.debug("Pragma rules module load failed", e);
+        // Bỏ qua nếu module không nạp được
     }
-    // Missing return detection (AST-based) via syntax module
+    // PHẦN 2: MISSING RETURN (Dựa trên AST)
     if (rules.missingReturn && tree) {
         try {
             const { runMissingReturnAst } = require("./rules/syntax");
@@ -419,7 +425,7 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
         }
         catch { }
     }
-    // Semantic AST-based rules (visibility, casts, deprecated patterns)
+    // PHẦN 3: SEMANTIC RULES (Dựa trên AST) - Visibility, Casts, Deprecated patterns
     if (tree) {
         try {
             const { runSemanticRulesAst } = require("./rules/semantic");
@@ -438,7 +444,7 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
         }
         catch { }
     }
-    // Global parentheses analysis (AST-assisted + character-level)
+    // PHẦN 4: PARENTHESES ANALYSIS (Dựa trên AST + Character-level) - Kiểm tra dấu ngoặc
     if (rules.missingParentheses) {
         try {
             const { runParenthesesGlobal } = require("./rules/syntax");
@@ -446,27 +452,26 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
         }
         catch { }
     }
-    // UNUSED_VARIABLE via modular rule (scope-aware) — consolidates previous passes
+    // PHẦN 5: UNUSED VARIABLE - Kiểm tra biến không sử dụng
     try {
         const { runUnusedVariables } = require("./rules/unused");
-        // Include state variables in the UNUSED_VARIABLE check to flag unreferenced
-        // public/private storage that never gets read or written inside the contract
+        // Kiểm tra bao gồm cả biến trạng thái (state variables) không được tham chiếu
         runUnusedVariables(content, tree, declaredDeclarations, pushFinding, {
             includeStateVariables: true,
         });
     }
     catch (e) {
-        // ignore if module cannot be loaded
+        // Bỏ qua
     }
-    // MISSING_PAYABLE (AST + heuristic) via modular rules
+    // PHẦN 6: MISSING PAYABLE (AST + Heuristic) - Gợi ý thêm từ khóa payable
     try {
         const { runPayableAstAndHeuristic } = require("./rules/payable");
         runPayableAstAndHeuristic(content, tree, !!rules.missingPayable, payableHeuristic, pushFinding);
     }
     catch (e) {
-        // ignore if module cannot be loaded
+        // Bỏ qua
     }
-    // Braces global check via syntax module
+    // PHẦN 7: BRACES GLOBAL - Kiểm tra dấu ngoặc nhọn `{}` tổng quát
     if (rules.missingBraces) {
         try {
             const { runBracesGlobal } = require("./rules/syntax");
@@ -475,18 +480,20 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
         catch { }
     }
     // =============================================================================
-    // PHÂN TÍCH TỪNG DÒNG
+    // PHÂN TÍCH TỪNG DÒNG (PER-LINE ANALYSIS)
     // =============================================================================
+    // Lưu ý: Các quy tắc phức tạp hơn đã được xử lý bằng AST ở trên. 
+    // Phần này xử lý các kiểm tra nhanh dựa trên regex cho từng dòng.
     for (let i = 0; i < lines.length; i += 1) {
         const rawLine = lines[i];
-        // Loại bỏ inline comment '//' trên cùng 1 dòng (block comments đã bị xóa phía trên)
+        // Loại bỏ inline comment '//' để tránh phân tích nhầm nội dung trong comment
         const stripInlineComments = (s) => s.split("//")[0];
         const line = stripInlineComments(rawLine);
         const lineNoInlineComment = line;
         const lineLower = line.toLowerCase();
+        // Tìm vị trí ký tự code cuối cùng (không tính khoảng trắng và comment)
         const getLastCodeCharIndex = (s) => {
             const codePart = stripInlineComments(s);
-            // vị trí ký tự code cuối cùng (bỏ khoảng trắng cuối)
             for (let k = codePart.length - 1; k >= 0; k -= 1) {
                 const ch = codePart[k];
                 if (ch !== " " && ch !== "\t") {
@@ -503,9 +510,7 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
                 return undefined;
             }
         };
-        // =============================================================================
-        // SECURITY RULES (modularized per-line)
-        // =============================================================================
+        // PHẦN 8: SECURITY RULES (Phân tích từng dòng)
         try {
             const { runSecurityRulesSingleLine } = require("./rules/security");
             runSecurityRulesSingleLine(line, lineLower, i, {
@@ -516,9 +521,7 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
             }, pushFinding);
         }
         catch { }
-        // =============================================================================
-        // SYNTAX RULES (modularized per-line)
-        // =============================================================================
+        // PHẦN 9: SYNTAX RULES (Phân tích từng dòng) - Semicolon, Keywords, Data types...
         try {
             const { runSyntaxRulesSingleLine } = require("./rules/syntax");
             runSyntaxRulesSingleLine(line, lineLower, i, lines, {
@@ -529,15 +532,13 @@ function analyzeText(content, rules, maxProblems, naming, useAST, payableHeurist
             }, content, pushFinding, declaredIdentifiers, missingTypeIdentifiers, commentRanges, lineStartIndices, parameterLineSet);
         }
         catch { }
-        // 10. MISSING_PAYABLE - Fallback per-line checks (receive(), no-AST heuristic)
+        // PHẦN 10: MISSING PAYABLE (Fallback cho từng dòng) - receive(), các heuristic không AST
         try {
             const { runPayableLineFallbackSingle } = require("./rules/payable");
             runPayableLineFallbackSingle(line, i, content, tree, !!rules.missingPayable, pushFinding);
         }
         catch { }
-        // =============================================================================
-        // NAMING RULES (modularized per-line)
-        // =============================================================================
+        // PHẦN 11: NAMING RULES (Phân tích từng dòng) - Kiểm tra quy tắc đặt tên
         try {
             const { runNamingRulesSingleLine } = require("./rules/naming");
             runNamingRulesSingleLine(line, i, naming, {

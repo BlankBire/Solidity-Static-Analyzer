@@ -37,8 +37,8 @@ exports.runPayableAstAndHeuristic = runPayableAstAndHeuristic;
 exports.runPayableLineFallbackSingle = runPayableLineFallbackSingle;
 const vscode = __importStar(require("vscode"));
 /**
- * AST-based payable detection and name-heuristic suggestion.
- * Mirrors logic previously embedded in the analyzer.
+ * Phát hiện từ khóa payable dựa trên AST và gợi ý theo heuristic tên hàm.
+ * Kế thừa logic từ bộ phân tích chính.
  */
 function runPayableAstAndHeuristic(content, tree, enabled, heuristic, pushFinding) {
     if (!enabled)
@@ -102,12 +102,12 @@ function runPayableAstAndHeuristic(content, tree, enabled, heuristic, pushFindin
                         const col = before[before.length - 1].length;
                         const severity = vscode.DiagnosticSeverity.Error;
                         const message = isReceive
-                            ? "'receive' function must be marked payable to accept ETH."
+                            ? "Hàm 'receive' phải được đánh dấu 'payable' để nhận ETH."
                             : isFallback
-                                ? "'fallback' function receiving Ether must be payable."
+                                ? "Hàm 'fallback' nhận Ether phải được đánh dấu 'payable'."
                                 : isConstructor && usesMsgValue
-                                    ? "Constructor receiving Ether must be payable."
-                                    : "Function receiving Ether (reads msg.value) must be payable.";
+                                    ? "Constructor nhận Ether phải được đánh dấu 'payable'."
+                                    : "Hàm nhận Ether (có sử dụng msg.value) phải được đánh dấu 'payable'.";
                         pushFinding(line, col, col + hlLen, message, "MISSING_PAYABLE", severity);
                     }
                 }
@@ -147,7 +147,7 @@ function runPayableAstAndHeuristic(content, tree, enabled, heuristic, pushFindin
                                     const before = content.slice(0, absStart).split(/\r?\n/);
                                     const line = before.length - 1;
                                     const col = before[before.length - 1].length;
-                                    pushFinding(line, col, col + fname.length, "Function name suggests it should accept Ether; consider adding 'payable'.", "MISSING_PAYABLE", vscode.DiagnosticSeverity.Warning);
+                                    pushFinding(line, col, col + fname.length, "Tên hàm gợi ý rằng nó nên nhận Ether; hãy cân nhắc thêm từ khóa 'payable'.", "MISSING_PAYABLE", vscode.DiagnosticSeverity.Warning);
                                 }
                             }
                         }
@@ -175,7 +175,7 @@ function runPayableLineFallbackSingle(line, lineIndex, content, tree, enabled, p
     if (isReceiveDecl && !/\bpayable\b/i.test(noComment)) {
         const idx = noComment.search(/\breceive\b/i);
         if (idx >= 0) {
-            pushFinding(lineIndex, idx, idx + "receive".length, "'receive' function must be marked payable to accept ETH.", "MISSING_PAYABLE", vscode.DiagnosticSeverity.Error);
+            pushFinding(lineIndex, idx, idx + "receive".length, "Hàm 'receive' phải được đánh dấu 'payable' để nhận ETH.", "MISSING_PAYABLE", vscode.DiagnosticSeverity.Error);
         }
     }
     // Only run broader heuristic if we don't have AST (to reduce noise)
@@ -186,7 +186,7 @@ function runPayableLineFallbackSingle(line, lineIndex, content, tree, enabled, p
             const match = line.match(functionPattern);
             if (match && match.index !== undefined) {
                 const idx = match.index;
-                pushFinding(lineIndex, idx, idx + match[0].length, "Function that handles ETH should have 'payable' modifier.", "MISSING_PAYABLE", vscode.DiagnosticSeverity.Warning);
+                pushFinding(lineIndex, idx, idx + match[0].length, "Hàm xử lý ETH nên có modifier 'payable'.", "MISSING_PAYABLE", vscode.DiagnosticSeverity.Warning);
             }
         }
     }

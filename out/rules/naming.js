@@ -102,7 +102,7 @@ function runNamingRulesSingleLine(line, lineIndex, naming, toggles, pushFinding,
                 const firstAbs = segStart + firstIdx;
                 const firstCh = seg[firstIdx];
                 if (!firstCh || !/[A-Za-z_]/.test(firstCh)) {
-                    pushFinding(lineIndex, firstAbs, firstAbs + 1, "Invalid function identifier.", "FUNCTION_NAMING", vscode.DiagnosticSeverity.Error);
+                    pushFinding(lineIndex, firstAbs, firstAbs + 1, "Tên hàm không hợp lệ.", "FUNCTION_NAMING", vscode.DiagnosticSeverity.Error);
                 }
                 else {
                     const idMatch = seg.slice(firstIdx).match(/^[A-Za-z_][A-Za-z0-9_]*/);
@@ -111,12 +111,12 @@ function runNamingRulesSingleLine(line, lineIndex, naming, toggles, pushFinding,
                     const nameEnd = nameStart + name.length;
                     const rest = seg.slice(firstIdx + name.length);
                     if (/[^\s]/.test(rest)) {
-                        pushFinding(lineIndex, nameStart, nameEnd, "Invalid function identifier.", "FUNCTION_NAMING", vscode.DiagnosticSeverity.Error);
+                        pushFinding(lineIndex, nameStart, nameEnd, "Tên hàm không hợp lệ.", "FUNCTION_NAMING", vscode.DiagnosticSeverity.Error);
                     }
                     else {
                         const fnRegex = tryRegex(naming.functionPattern);
                         if (fnRegex && !fnRegex.test(name)) {
-                            pushFinding(lineIndex, nameStart, nameEnd, `Invalid function identifier '${name}'.`, "FUNCTION_NAMING", vscode.DiagnosticSeverity.Error);
+                            pushFinding(lineIndex, nameStart, nameEnd, `Tên hàm '${name}' không đúng quy tắc.`, "FUNCTION_NAMING", vscode.DiagnosticSeverity.Error);
                         }
                     }
                 }
@@ -131,9 +131,9 @@ function runNamingRulesSingleLine(line, lineIndex, naming, toggles, pushFinding,
         const firstToken = firstTokenMatch ? firstTokenMatch[0] : "";
         const startsWithType = isTypeToken(firstToken);
         const isFunctionLine = /^\s*function\b/i.test(decl);
-        // Use AST-derived paramLineSet (if available) to detect parameter-list context
+        // Sử dụng paramLineSet từ AST (nếu có) để xác định ngữ cảnh danh sách tham số
         let isInsideFunctionParams = !!(paramLineSet && paramLineSet.has(lineIndex));
-        // Fallback to text heuristic when AST info not present
+        // Fallback sang heuristic văn bản khi không có thông tin AST
         if (!isInsideFunctionParams) {
             try {
                 if (lines && lineIndex >= 0) {
@@ -212,14 +212,14 @@ function runNamingRulesSingleLine(line, lineIndex, naming, toggles, pushFinding,
                     ? /^[A-Za-z_][A-Za-z0-9_]*;?$/.test(nextTok)
                     : false;
                 if (nextTok && !nextIsArray && !nextIsModifier && nextLooksIdentifier) {
-                    pushFinding(lineIndex, identifierStart, identifierStart + identifier.length, "Invalid variable identifier.", "VARIABLE_NAMING", vscode.DiagnosticSeverity.Error);
+                    pushFinding(lineIndex, identifierStart, identifierStart + identifier.length, "Tên biến không hợp lệ.", "VARIABLE_NAMING", vscode.DiagnosticSeverity.Error);
                 }
                 else {
                     const identifierEnd = identifierStart + identifier.length;
                     const isConstant = /\b(constant|immutable)\b/i.test(decl);
                     const varRegex = tryRegex(isConstant ? naming.constantPattern : naming.variablePattern);
                     if (varRegex && !varRegex.test(identifier)) {
-                        pushFinding(lineIndex, identifierStart, identifierEnd, `Invalid variable identifier '${identifier}'.`, "VARIABLE_NAMING", vscode.DiagnosticSeverity.Error);
+                        pushFinding(lineIndex, identifierStart, identifierEnd, `Tên biến '${identifier}' không đúng quy tắc.`, "VARIABLE_NAMING", vscode.DiagnosticSeverity.Error);
                     }
                 }
             }
@@ -236,7 +236,7 @@ function runNamingRulesSingleLine(line, lineIndex, naming, toggles, pushFinding,
             const baseStart = m.index + m[0].indexOf(seg);
             if (segTrim === "") {
                 const reportCol = braceIdx >= 0 ? braceIdx : baseStart;
-                pushFinding(lineIndex, reportCol, reportCol + 1, "Invalid contract/interface/library identifier.", "CONTRACT_NAMING", vscode.DiagnosticSeverity.Error);
+                pushFinding(lineIndex, reportCol, reportCol + 1, "Tên contract/interface/library không hợp lệ.", "CONTRACT_NAMING", vscode.DiagnosticSeverity.Error);
             }
             else {
                 const name = segTrim.split(/\s+/)[0];
@@ -244,17 +244,17 @@ function runNamingRulesSingleLine(line, lineIndex, naming, toggles, pushFinding,
                 const nameStart = baseStart + (nameRelIdx >= 0 ? nameRelIdx : 0);
                 const nameEnd = nameStart + name.length;
                 if (!/[A-Za-z_]/.test(name[0] || "")) {
-                    pushFinding(lineIndex, nameStart, nameStart + 1, "Invalid contract/interface/library identifier.", "CONTRACT_NAMING", vscode.DiagnosticSeverity.Error);
+                    pushFinding(lineIndex, nameStart, nameStart + 1, "Tên contract/interface/library không hợp lệ.", "CONTRACT_NAMING", vscode.DiagnosticSeverity.Error);
                 }
                 else {
                     const rest = segTrim.slice(name.length).trim();
                     if (rest && !/^is\b/i.test(rest)) {
-                        pushFinding(lineIndex, nameStart, nameEnd, "Invalid contract/interface/library identifier.", "CONTRACT_NAMING", vscode.DiagnosticSeverity.Error);
+                        pushFinding(lineIndex, nameStart, nameEnd, "Tên contract/interface/library không hợp lệ.", "CONTRACT_NAMING", vscode.DiagnosticSeverity.Error);
                     }
                     else {
                         const rx = tryRegex(naming.contractPattern);
                         if (rx && !rx.test(name)) {
-                            pushFinding(lineIndex, nameStart, nameEnd, `Invalid contract/interface/library identifier '${name}'.`, "CONTRACT_NAMING", vscode.DiagnosticSeverity.Error);
+                            pushFinding(lineIndex, nameStart, nameEnd, `Tên '${name}' không đúng quy tắc.`, "CONTRACT_NAMING", vscode.DiagnosticSeverity.Error);
                         }
                     }
                 }

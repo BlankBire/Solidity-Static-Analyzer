@@ -12,10 +12,9 @@ type PushFinding = (
 ) => void;
 
 /**
- * Resolve imports referenced in a file and merge exported top-level names
- * (contracts, libraries, interfaces) into `declaredIdentifiers` so
- * other single-file heuristics don't produce false positives.
- * Also reports a diagnostic when an imported file path cannot be found.
+ * Giải quyết các import được tham chiếu trong file và gộp các tên top-level (contract, library, interface)
+ * vào `declaredIdentifiers` để các heuristic đơn lẻ khác không báo lỗi nhầm.
+ * Đồng thời báo lỗi nếu đường dẫn file import không được tìm thấy.
  */
 export function runCrossFileChecks(
   content: string,
@@ -42,14 +41,14 @@ export function runCrossFileChecks(
           line,
           col,
           col + Math.min(importPath.length + 7, 80),
-          `Source '${importAbs}' not found: File import not resolved.`,
+          `Không tìm thấy tệp nguồn '${importAbs}': Lỗi giải quyết import.`,
           "IMPORT_NOT_FOUND",
           vscode.DiagnosticSeverity.Error
         );
         continue;
       }
 
-      // parse imported file and collect top-level names (library, contract, interface)
+      // phân tích tệp đã nhập và thu thập các tên cấp cao nhất (library, contract, interface)
       try {
         const txt = fs.readFileSync(importAbs, "utf8");
         // quick heuristic parse: look for `library|contract|interface|enum|struct` followed by identifier
