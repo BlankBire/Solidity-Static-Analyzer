@@ -13,7 +13,6 @@ Thumbs.db
 !.vscode/tasks.json
 
 .vscode-test/
-*.vsix
 
 .env
 .env.*
